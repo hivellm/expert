@@ -1,0 +1,920 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hivellm.org/schemas/expert-manifest.json",
+  "title": "HiveLLM Expert Manifest",
+  "description": "Schema for HiveLLM expert package manifests (supports v1.0 and v2.0)",
+  "type": "object",
+  "required": ["name", "version", "description", "capabilities", "constraints", "training", "license"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Expert package name (e.g., 'expert-sql')",
+      "pattern": "^expert-[a-z0-9-]+$"
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version (e.g., '0.0.1')",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "schema_version": {
+      "type": "string",
+      "description": "Manifest schema version. Defaults to '1.0' if not specified.",
+      "enum": ["1.0", "2.0"],
+      "default": "2.0"
+    },
+    "description": {
+      "type": "string",
+      "description": "Brief description of expert's purpose"
+    },
+    "author": {
+      "type": "string",
+      "description": "Author or organization name"
+    },
+    "homepage": {
+      "type": "string",
+      "format": "uri",
+      "description": "Homepage URL"
+    },
+    "repository": {
+      "type": "object",
+      "description": "Source repository information",
+      "required": ["type", "url"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["git"]
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    },
+    "base_model": {
+      "description": "Single base model (schema v1.0 only). Deprecated in v2.0.",
+      "$ref": "#/definitions/BaseModel"
+    },
+    "base_models": {
+      "description": "Multiple base models (schema v2.0 only)",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/BaseModelV2"
+      }
+    },
+    "adapters": {
+      "description": "Adapters (v1.0 only - moved to base_models in v2.0)",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Adapter"
+      }
+    },
+    "soft_prompts": {
+      "type": "array",
+      "description": "Soft prompt configurations (trainable prompt embeddings)",
+      "items": {
+        "$ref": "#/definitions/SoftPrompt"
+      },
+      "default": []
+    },
+    "capabilities": {
+      "type": "array",
+      "description": "List of expert capabilities (used by router)",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "routing": {
+      "description": "Router configuration (optional)",
+      "$ref": "#/definitions/Routing"
+    },
+    "constraints": {
+      "description": "Loading and composition constraints",
+      "$ref": "#/definitions/Constraints"
+    },
+    "perf": {
+      "description": "Performance characteristics",
+      "$ref": "#/definitions/Performance"
+    },
+    "runtime": {
+      "description": "Runtime-specific metadata (for Candle/Rust inference)",
+      "$ref": "#/definitions/Runtime"
+    },
+    "training": {
+      "description": "Training configuration",
+      "$ref": "#/definitions/Training"
+    },
+    "evaluation": {
+      "description": "Evaluation metrics (optional)",
+      "$ref": "#/definitions/Evaluation"
+    },
+    "integrity": {
+      "description": "Package integrity (signatures, hashes)",
+      "$ref": "#/definitions/Integrity"
+    },
+    "license": {
+      "type": "string",
+      "description": "SPDX license identifier"
+    },
+    "tags": {
+      "type": "array",
+      "description": "Searchable tags",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "description": "Schema v1.0: Must have base_model, cannot have base_models",
+      "required": ["base_model"],
+      "not": {
+        "required": ["base_models"]
+      }
+    },
+    {
+      "description": "Schema v2.0: Must have base_models, cannot have base_model",
+      "required": ["base_models"],
+      "not": {
+        "required": ["base_model"]
+      }
+    }
+  ],
+  "definitions": {
+    "BaseModel": {
+      "type": "object",
+      "description": "Base model configuration (schema v1.0)",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Model name or path"
+        },
+        "sha256": {
+          "type": "string",
+          "description": "SHA256 hash of model weights"
+        },
+        "quantization": {
+          "type": "string",
+          "description": "Quantization type",
+          "enum": ["int4", "int8", "fp16", "bf16", "none"]
+        },
+        "rope_scaling": {
+          "$ref": "#/definitions/RopeScaling"
+        }
+      }
+    },
+    "BaseModelV2": {
+      "type": "object",
+      "description": "Base model configuration (schema v2.0) - includes adapters",
+      "required": ["name", "adapters"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Model name or path"
+        },
+        "sha256": {
+          "type": "string",
+          "description": "SHA256 hash of model weights"
+        },
+        "quantization": {
+          "type": "string",
+          "enum": ["int4", "int8", "fp16", "bf16", "none"]
+        },
+        "rope_scaling": {
+          "$ref": "#/definitions/RopeScaling"
+        },
+        "prompt_template": {
+          "type": "string",
+          "description": "Prompt template format",
+          "enum": ["chatml", "llama2", "alpaca", "vicuna", "custom"]
+        },
+        "adapters": {
+          "type": "array",
+          "description": "Adapter configurations for this model",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/Adapter"
+          }
+        }
+      }
+    },
+    "RopeScaling": {
+      "description": "RoPE (Rotary Position Embedding) scaling configuration",
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Simple string format (legacy)",
+          "examples": ["yarn-128k", "ntk-256k", "dynamic"]
+        },
+        {
+          "type": "object",
+          "description": "Detailed NTK-by-parts configuration (Qwen3-specific)",
+          "required": ["type", "factor", "max_position_embeddings", "original_max_position_embeddings", "fine_grained"],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["ntk-by-parts", "yarn", "dynamic", "linear"],
+              "description": "Scaling algorithm type"
+            },
+            "factor": {
+              "type": "number",
+              "description": "Scaling factor (typically 2.0, 4.0, or 8.0)",
+              "minimum": 1.0
+            },
+            "max_position_embeddings": {
+              "type": "integer",
+              "description": "Maximum sequence length after scaling",
+              "minimum": 1
+            },
+            "original_max_position_embeddings": {
+              "type": "integer",
+              "description": "Original max sequence length before scaling",
+              "minimum": 1
+            },
+            "fine_grained": {
+              "type": "boolean",
+              "description": "Enable fine-grained scaling (Qwen3-specific)"
+            }
+          }
+        }
+      ]
+    },
+    "Adapter": {
+      "type": "object",
+      "description": "Adapter configuration (LoRA, DoRA, IA³, LoKr)",
+      "required": ["type", "target_modules", "path"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["lora", "dora", "ia3", "lokr", "adalora"],
+          "description": "Adapter type"
+        },
+        "target_modules": {
+          "type": "array",
+          "description": "Model layers to adapt",
+          "items": {
+            "type": "string",
+            "enum": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+          },
+          "minItems": 1
+        },
+        "feedforward_modules": {
+          "type": "array",
+          "description": "MLP/FFN modules (IA³-specific)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "r": {
+          "type": "integer",
+          "description": "Rank (LoRA/DoRA/LoKr only, not IA³)",
+          "minimum": 1,
+          "maximum": 256
+        },
+        "alpha": {
+          "type": "integer",
+          "description": "Alpha scaling parameter (LoRA/DoRA/LoKr only)",
+          "minimum": 1
+        },
+        "scaling": {
+          "type": "string",
+          "description": "Scaling method",
+          "enum": ["default", "standard", "dora", "learned"]
+        },
+        "dropout": {
+          "type": "number",
+          "description": "Dropout rate for adapter layers",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "use_dora": {
+          "type": "boolean",
+          "description": "Enable DoRA (weight decomposition)"
+        },
+        "path": {
+          "type": "string",
+          "description": "Relative path to adapter weights"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "description": "Size of adapter weights in bytes",
+          "minimum": 0
+        },
+        "sha256": {
+          "type": "string",
+          "description": "SHA256 hash of adapter weights",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": ["lora", "dora", "lokr", "adalora"]
+              }
+            }
+          },
+          "then": {
+            "required": ["r", "alpha"],
+            "description": "LoRA-based adapters require rank and alpha"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "ia3"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": ["r", "alpha"]
+            },
+            "description": "IA³ does not use rank/alpha parameters"
+          }
+        }
+      ]
+    },
+    "SoftPrompt": {
+      "type": "object",
+      "description": "Soft prompt (trainable prompt embeddings)",
+      "required": ["name", "path", "tokens"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Soft prompt identifier"
+        },
+        "path": {
+          "type": "string",
+          "description": "Path to soft prompt weights (.pt or .bin)"
+        },
+        "tokens": {
+          "type": "integer",
+          "description": "Number of prompt tokens",
+          "minimum": 1,
+          "maximum": 512
+        },
+        "init_method": {
+          "type": "string",
+          "description": "Initialization method",
+          "enum": ["random", "text", "vocab_sample"]
+        },
+        "init_text": {
+          "type": "string",
+          "description": "Text to initialize from (when init_method='text')"
+        },
+        "purpose": {
+          "type": "string",
+          "description": "Human-readable description of soft prompt purpose"
+        }
+      }
+    },
+    "Routing": {
+      "type": "object",
+      "description": "Router configuration for expert selection",
+      "required": ["keywords"],
+      "properties": {
+        "keywords": {
+          "type": "array",
+          "description": "Keywords that trigger this expert",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "router_hint": {
+          "type": "string",
+          "description": "Boolean expression for router (e.g., 'database=sql OR task=text2sql')"
+        },
+        "priority": {
+          "type": "number",
+          "description": "Expert priority (0.0-1.0, higher = preferred)",
+          "minimum": 0.0,
+          "maximum": 1.0
+        }
+      }
+    },
+    "Constraints": {
+      "type": "object",
+      "description": "Loading and composition constraints",
+      "required": ["load_order", "incompatible_with", "requires"],
+      "properties": {
+        "max_chain": {
+          "type": "integer",
+          "description": "Maximum chain depth (prevents infinite loops)",
+          "minimum": 1
+        },
+        "load_order": {
+          "type": "integer",
+          "description": "Loading priority (lower = loads first)",
+          "minimum": 0
+        },
+        "incompatible_with": {
+          "type": "array",
+          "description": "Expert names that cannot load with this one",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requires": {
+          "type": "array",
+          "description": "Expert dependencies",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "Performance": {
+      "type": "object",
+      "description": "Performance characteristics for resource planning",
+      "required": ["latency_ms_overhead", "vram_mb_overhead", "supported_batch_sizes"],
+      "properties": {
+        "latency_ms_overhead": {
+          "type": "number",
+          "description": "Additional latency when expert is loaded (milliseconds)",
+          "minimum": 0
+        },
+        "vram_mb_overhead": {
+          "type": "integer",
+          "description": "Additional VRAM usage (megabytes). LoRA: ~15MB, DoRA: ~18MB, IA³: ~2MB",
+          "minimum": 0
+        },
+        "supported_batch_sizes": {
+          "type": "array",
+          "description": "Batch sizes that work without OOM",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "Runtime": {
+      "type": "object",
+      "description": "Runtime-specific metadata (for Rust/Candle inference). STATUS: Metadata only, not yet used by runtime.",
+      "properties": {
+        "candle_compatible": {
+          "type": "boolean",
+          "description": "Whether this expert works with Candle runtime",
+          "default": true
+        },
+        "requires_kv_cache_persistence": {
+          "type": "boolean",
+          "description": "Whether expert needs KV cache to persist across calls",
+          "default": false
+        },
+        "attention_kernel": {
+          "type": "string",
+          "description": "Preferred attention kernel",
+          "enum": ["sdpa", "flash-v1", "flash-v2", "xformers", "vanilla"]
+        }
+      }
+    },
+    "Training": {
+      "type": "object",
+      "description": "Training configuration and dataset",
+      "required": ["dataset", "config"],
+      "properties": {
+        "dataset": {
+          "$ref": "#/definitions/Dataset"
+        },
+        "config": {
+          "$ref": "#/definitions/TrainingConfig"
+        },
+        "decoding": {
+          "$ref": "#/definitions/DecodingConfig"
+        },
+        "trained_on": {
+          "type": "string",
+          "description": "Training date (ISO 8601)",
+          "format": "date"
+        },
+        "base_model_version": {
+          "type": "string",
+          "description": "Base model version used for training"
+        },
+        "packaging_checkpoint": {
+          "type": "string",
+          "description": "Specific checkpoint to use for packaging (e.g., 'checkpoint-1250'). If not specified, uses the 'final' checkpoint. Use this when the best model is not the final trained checkpoint.",
+          "pattern": "^(checkpoint-\\d+|final)$"
+        }
+      }
+    },
+    "Dataset": {
+      "type": "object",
+      "description": "Dataset configuration",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Dataset path (local file or HuggingFace ID)"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["single", "multi_task"],
+          "description": "Dataset type"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["jsonl", "huggingface", "csv", "parquet"],
+          "description": "Dataset format"
+        },
+        "field_mapping": {
+          "type": "object",
+          "description": "Maps dataset fields to expected fields",
+          "properties": {
+            "instruction": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            },
+            "response": {
+              "type": "string"
+            }
+          }
+        },
+        "tasks": {
+          "type": "object",
+          "description": "Multi-task dataset configuration",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["train", "weight", "format"],
+            "properties": {
+              "train": {
+                "type": "string"
+              },
+              "valid": {
+                "type": "string"
+              },
+              "test": {
+                "type": "string"
+              },
+              "weight": {
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0
+              },
+              "format": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "validation": {
+          "type": "object",
+          "description": "Dataset validation rules",
+          "properties": {
+            "validate_json": {
+              "type": "boolean"
+            },
+            "validate_schema": {
+              "type": "boolean"
+            },
+            "deduplicate": {
+              "type": "boolean"
+            },
+            "min_length": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_length": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "augmentation": {
+          "type": "object",
+          "description": "Data augmentation settings. STATUS: Not implemented in trainer yet.",
+          "properties": {
+            "schema_injection_prob": {
+              "type": "number",
+              "description": "Probability of injecting schema context (SQL/Cypher)",
+              "minimum": 0.0,
+              "maximum": 1.0
+            },
+            "table_aliases": {
+              "type": "boolean",
+              "description": "Generate table aliases in queries"
+            },
+            "comment_stripping": {
+              "type": "boolean",
+              "description": "Strip SQL comments during training"
+            },
+            "case_normalization": {
+              "type": "string",
+              "enum": ["preserve", "upper", "lower"],
+              "description": "SQL case normalization strategy"
+            }
+          }
+        }
+      }
+    },
+    "TrainingConfig": {
+      "type": "object",
+      "description": "Training hyperparameters",
+      "required": ["method", "adapter_type", "target_modules", "epochs", "learning_rate", "batch_size"],
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": ["sft", "rlhf", "dpo"],
+          "description": "Training method (only 'sft' implemented)"
+        },
+        "adapter_type": {
+          "type": "string",
+          "enum": ["lora", "dora", "ia3", "lokr", "adalora"],
+          "description": "PEFT adapter type"
+        },
+        "use_unsloth": {
+          "type": "boolean",
+          "description": "Enable Unsloth for 2x faster training and 70% less VRAM (requires: pip install unsloth)",
+          "default": false
+        },
+        "rank": {
+          "type": "integer",
+          "description": "Adapter rank (LoRA/DoRA/LoKr only, NOT for IA³)",
+          "minimum": 1,
+          "maximum": 256
+        },
+        "alpha": {
+          "type": "integer",
+          "description": "Alpha scaling (LoRA/DoRA/LoKr only, NOT for IA³)",
+          "minimum": 1
+        },
+        "target_modules": {
+          "type": "array",
+          "description": "Modules to adapt",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "feedforward_modules": {
+          "type": "array",
+          "description": "FFN modules (IA³-specific)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "epochs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "learning_rate": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "batch_size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "gradient_accumulation_steps": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "warmup_steps": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of warmup steps (set to 0 when using warmup_ratio)"
+        },
+        "warmup_ratio": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Warmup ratio as percentage of total steps (e.g., 0.1 = 10% warmup). Takes precedence over warmup_steps."
+        },
+        "lr_scheduler": {
+          "type": "string",
+          "enum": ["linear", "cosine", "constant", "polynomial", "cosine_with_restarts"],
+          "description": "Learning rate scheduler type"
+        },
+        "max_seq_length": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "dataloader_num_workers": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dataloader_pin_memory": {
+          "type": "boolean"
+        },
+        "dataloader_prefetch_factor": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "dataloader_persistent_workers": {
+          "type": "boolean"
+        },
+        "fp16": {
+          "type": "boolean"
+        },
+        "bf16": {
+          "type": "boolean"
+        },
+        "use_tf32": {
+          "type": "boolean",
+          "description": "Enable TF32 for matrix ops (NVIDIA Ampere+)"
+        },
+        "use_sdpa": {
+          "type": "boolean",
+          "description": "Use scaled dot-product attention (Flash Attention v2)"
+        },
+        "packing": {
+          "type": "boolean",
+          "description": "Enable sequence packing with SFTTrainer (reduces padding waste, +30-40% tokens/s)",
+          "default": false
+        },
+        "optim": {
+          "type": "string",
+          "description": "Optimizer",
+          "enum": ["adamw_torch", "adamw_torch_fused", "adamw_bnb_8bit", "sgd"]
+        },
+        "group_by_length": {
+          "type": "boolean"
+        },
+        "logging_steps": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "save_strategy": {
+          "type": "string",
+          "description": "Checkpoint saving strategy",
+          "enum": ["no", "steps", "epoch"]
+        },
+        "save_steps": {
+          "type": "integer",
+          "description": "Save checkpoint every N steps (when save_strategy='steps')",
+          "minimum": 1
+        },
+        "save_total_limit": {
+          "type": "integer",
+          "description": "Maximum number of checkpoints to keep (deletes oldest)",
+          "minimum": 1
+        },
+        "evaluation_strategy": {
+          "type": "string",
+          "description": "Evaluation strategy",
+          "enum": ["no", "steps", "epoch"]
+        },
+        "eval_steps": {
+          "type": "integer",
+          "description": "Evaluate every N steps (when evaluation_strategy='steps')",
+          "minimum": 1
+        },
+        "load_best_model_at_end": {
+          "type": "boolean",
+          "description": "Load best checkpoint at end of training (requires evaluation_strategy != 'no')"
+        },
+        "metric_for_best_model": {
+          "type": "string",
+          "description": "Metric to use for best model selection (e.g., 'eval_loss')",
+          "default": "eval_loss"
+        },
+        "greater_is_better": {
+          "type": "boolean",
+          "description": "Whether higher metric value is better (false for loss metrics)",
+          "default": false
+        },
+        "gradient_checkpointing": {
+          "type": "boolean"
+        },
+        "pretokenized_cache": {
+          "type": "string",
+          "description": "Path to pre-tokenized dataset cache"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "adapter_type": {
+                "enum": ["lora", "dora", "lokr", "adalora"]
+              }
+            }
+          },
+          "then": {
+            "required": ["rank", "alpha"],
+            "description": "LoRA-based adapters require rank and alpha"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "adapter_type": {
+                "const": "ia3"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {"required": ["rank"]},
+                {"required": ["alpha"]}
+              ]
+            },
+            "description": "IA³ does not use rank/alpha (only target_modules)"
+          }
+        }
+      ]
+    },
+    "DecodingConfig": {
+      "type": "object",
+      "description": "Decoding/inference parameters. STATUS: Metadata only - not yet used by Rust runtime (hardcoded in chat.rs)",
+      "properties": {
+        "use_grammar": {
+          "type": "boolean",
+          "description": "Enable grammar-constrained decoding",
+          "default": false
+        },
+        "grammar_type": {
+          "type": "string",
+          "description": "Grammar type for validation",
+          "enum": ["json", "gbnf", "sql", "sql-postgres", "sql-mysql", "cypher", "typescript", "python"]
+        },
+        "grammar_file": {
+          "type": "string",
+          "description": "Path to GBNF grammar file"
+        },
+        "validation": {
+          "type": "string",
+          "description": "Post-generation validation method",
+          "enum": ["parser", "parser-strict", "tsc", "explain", "none"]
+        },
+        "validation_cmd": {
+          "type": "string",
+          "description": "Command for validation (e.g., 'tsc --noEmit', 'EXPLAIN')"
+        },
+        "stop_sequences": {
+          "type": "array",
+          "description": "Sequences that terminate generation",
+          "items": {
+            "type": "string"
+          }
+        },
+        "temperature": {
+          "type": "number",
+          "description": "Sampling temperature (0.0=greedy, higher=creative)",
+          "minimum": 0.0,
+          "maximum": 2.0
+        },
+        "top_p": {
+          "type": "number",
+          "description": "Nucleus sampling threshold",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "top_k": {
+          "type": "integer",
+          "description": "Top-k sampling limit",
+          "minimum": 1
+        }
+      }
+    },
+    "Evaluation": {
+      "type": "object",
+      "description": "Evaluation metrics and test cases",
+      "properties": {
+        "test_cases": {
+          "type": "string",
+          "description": "Path to test cases file"
+        },
+        "metrics": {
+          "type": "object",
+          "description": "Evaluation metrics",
+          "additionalProperties": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "Integrity": {
+      "type": "object",
+      "description": "Package integrity (cryptographic signatures)",
+      "required": ["timestamp", "public_key", "signature"],
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Signing timestamp (ISO 8601)"
+        },
+        "public_key": {
+          "type": "string",
+          "description": "Ed25519 public key (hex)"
+        },
+        "signature": {
+          "type": "string",
+          "description": "Ed25519 signature (hex)"
+        }
+      }
+    }
+  }
+}
+

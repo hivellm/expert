@@ -1,0 +1,56 @@
+{
+  "name": "test-expert-v1",
+  "version": "1.0.0",
+  "schema_version": "1.0",
+  "description": "Test expert for schema v1.0",
+  "author": "Test Author",
+  
+  "base_model": {
+    "name": "Qwen3-0.6B",
+    "sha256": "test_hash_v1",
+    "quantization": "int4",
+    "rope_scaling": "yarn-128k"
+  },
+  
+  "adapters": [
+    {
+      "type": "lora",
+      "target_modules": ["q_proj", "v_proj"],
+      "r": 16,
+      "alpha": 16,
+      "scaling": "standard",
+      "dropout": 0.05,
+      "path": "weights/adapter.safetensors",
+      "size_bytes": 8388608,
+      "sha256": "adapter_hash"
+    }
+  ],
+  
+  "capabilities": ["test"],
+  
+  "constraints": {
+    "load_order": 5,
+    "incompatible_with": [],
+    "requires": []
+  },
+  
+  "training": {
+    "dataset": {
+      "path": "datasets/data.jsonl"
+    },
+    "config": {
+      "method": "sft",
+      "adapter_type": "lora",
+      "rank": 16,
+      "alpha": 16,
+      "target_modules": ["q_proj", "v_proj"],
+      "epochs": 3,
+      "learning_rate": 0.0003,
+      "batch_size": 4,
+      "gradient_accumulation_steps": 4,
+      "warmup_steps": 100,
+      "lr_scheduler": "cosine"
+    }
+  }
+}
+

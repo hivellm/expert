@@ -1,0 +1,15 @@
+[submodule "experts/expert-json"]
+	path = experts/expert-json
+	url = https://github.com/hivellm/expert-json.git
+[submodule "experts/expert-neo4j"]
+	path = experts/expert-neo4j
+	url = https://github.com/hivellm/expert-neo4j.git
+[submodule "experts/expert-elastic"]
+	path = experts/expert-elastic
+	url = https://github.com/hivellm/expert-elastic.git
+[submodule "experts/expert-typescript"]
+	path = experts/expert-typescript
+	url = https://github.com/hivellm/expert-typescript.git
+[submodule "experts/expert-sql"]
+	path = experts/expert-sql
+	url = https://github.com/hivellm/expert-sql

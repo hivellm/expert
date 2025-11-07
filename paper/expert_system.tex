@@ -1,0 +1,651 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{nicefrac}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage[margin=1in]{geometry}
+
+% Code listing style
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!10}
+}
+
+\title{HiveLLM Expert System: Runtime-Composable Adapters for Specialized Inference on Consumer GPUs}
+
+\author{
+  HiveLLM Research Team \\
+  \texttt{team@hivellm.org} \\
+}
+
+\date{November 2025}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+We present HiveLLM Expert System, a novel architecture for specialized AI inference on consumer-grade GPUs (8-16GB VRAM) through runtime composition of lightweight task-specific adapters. Unlike Mixture-of-Experts (MoE) models that embed multiple expert layers within a monolithic architecture, our system maintains a compact base model (Qwen3-0.6B, ~0.5GB) and dynamically loads independent PEFT adapters (LoRA, DoRA, IA³) on-demand. This approach enables: (1) independent expert training and distribution, (2) efficient memory usage through base model sharing across adapters, (3) rapid adapter switching (1-10ms), and (4) marketplace-driven ecosystem for specialized capabilities. We validate this architecture through the development of expert-sql, a text-to-SQL expert achieving 9.6/10 quality score and 100\% success rate on 30 real-world query generation tasks. Our experiments demonstrate that checkpoint-1250 (epoch 1.25) outperforms both earlier and final checkpoints, highlighting the importance of checkpoint selection. \textbf{This work is experimental and requires further validation in production environments.}
+\end{abstract}
+
+\section{Introduction}
+
+Large Language Models (LLMs) have demonstrated remarkable capabilities across diverse tasks, but their deployment faces significant practical constraints. State-of-the-art models (70B+ parameters) require datacenter-grade infrastructure (40GB+ VRAM), while smaller models (<7B parameters) often lack depth in specialized domains despite their efficiency on consumer hardware.
+
+We propose a third approach: \textbf{runtime-composable expert adapters}. Our system maintains a compact base model permanently loaded in GPU memory and dynamically attaches task-specific adapters as needed. This design is inspired by Parameter-Efficient Fine-Tuning (PEFT) methods \cite{hu2021lora, liu2024dora} but extends them to a multi-expert runtime architecture.
+
+\subsection{Key Contributions}
+
+\begin{itemize}
+\item A runtime architecture for dynamic composition of PEFT adapters without model merging
+\item Demonstration that adapter hot-swapping enables memory-efficient multi-expert systems
+\item Empirical validation through expert-sql: 100\% success on real-world SQL generation
+\item Analysis of checkpoint evolution showing non-monotonic quality progression
+\item Open-source implementation with comprehensive training pipeline
+\end{itemize}
+
+\subsection{Distinction from Mixture-of-Experts}
+
+Our approach is fundamentally different from Mixture-of-Experts (MoE) architectures \cite{shazeer2017mixtral}:
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{Aspect} & \textbf{MoE} & \textbf{HiveLLM} \\
+\midrule
+Expert Type & MLP layers & PEFT adapters \\
+Training & Joint & Independent \\
+Selection & Learned gating & Heuristic router \\
+Granularity & Per-token & Per-query \\
+Extensibility & Fixed & Dynamic \\
+Memory & $\sim$100GB & $\sim$1GB \\
+\bottomrule
+\end{tabular}
+\caption{Comparison between MoE and HiveLLM Expert System}
+\label{tab:moe-comparison}
+\end{table}
+
+\section{Related Work}
+
+\subsection{Parameter-Efficient Fine-Tuning}
+
+LoRA \cite{hu2021lora} introduced low-rank adaptation matrices that reduce trainable parameters by 10,000x. DoRA \cite{liu2024dora} improved upon LoRA by decomposing weight updates into magnitude and direction components. IA³ \cite{liu2022ia3} achieves even greater parameter efficiency through learned scaling vectors. Our work leverages these methods but focuses on the \textit{runtime composition} aspect rather than training efficiency.
+
+\subsection{Mixture-of-Experts Models}
+
+Mixtral \cite{shazeer2017mixtral} and GPT-4 employ sparse MoE architectures where each token is routed to 1-3 expert MLP layers via learned gating networks. While effective for large-scale models, MoE architectures are monolithic (all experts trained together) and require loading the entire model (~100GB+) into memory. Our approach enables independent expert development and selective loading.
+
+\subsection{Model Composition}
+
+Prior work on model composition includes model merging \cite{wortsman2022model} and ensemble methods. However, these typically require substantial memory or inference overhead. Our runtime adapter composition avoids model merging entirely, enabling sub-10ms switching.
+
+\section{Method}
+
+\subsection{System Architecture}
+
+The HiveLLM Expert System consists of four core components:
+
+\begin{enumerate}
+\item \textbf{Base Model (MB)}: Qwen3-0.6B quantized to INT4 ($\sim$0.5GB VRAM)
+\item \textbf{Expert Adapters (EXP)}: Independent PEFT adapters (5-80MB each)
+\item \textbf{Router (RG)}: CPU-based heuristic selection using keywords and embeddings
+\item \textbf{Inference Runtime (RI)}: GPU engine with hot-swap adapter support
+\end{enumerate}
+
+\subsection{Adapter Format}
+
+Each expert is packaged as a \texttt{.expert} file (tar.gz archive) containing:
+
+\begin{itemize}
+\item \texttt{manifest.json}: Metadata, capabilities, routing hints, decoding parameters
+\item \texttt{adapter\_model.safetensors}: PEFT adapter weights (LoRA/DoRA/IA³)
+\item \texttt{adapter\_config.json}: PEFT configuration (rank, alpha, target modules)
+\item \texttt{tokenizer.*}: Tokenizer files (reused from base model)
+\item \texttt{grammar.gbnf} (optional): Grammar constraints for structured output
+\end{itemize}
+
+\subsection{Training Protocol}
+
+We employ a standardized training protocol across all experts:
+
+\textbf{Adapter Configuration}:
+\begin{itemize}
+\item Type: DoRA (Weight-Decomposed Low-Rank Adaptation)
+\item Rank: 12-16 (task-dependent)
+\item Alpha: $2 \times r$ (standard scaling)
+\item Target modules: All attention (q, k, v, o) + MLP (up, down)
+\item Dropout: 0.1 (regularization)
+\end{itemize}
+
+\textbf{Hyperparameters} (LLaMA-Factory optimized \cite{llamafactory}):
+\begin{itemize}
+\item Learning rate: $5 \times 10^{-5}$ (conservative for small models)
+\item Batch size: 2, Gradient accumulation: 45 (effective batch = 90)
+\item Warmup ratio: 0.1 (10\% of total steps)
+\item LR scheduler: Cosine decay
+\item Optimizer: AdamW 8-bit (memory efficient)
+\item Precision: BF16 with TF32 tensor cores
+\end{itemize}
+
+\textbf{Optimizations}:
+\begin{itemize}
+\item Unsloth integration \cite{unsloth} for 2x speedup and 70\% VRAM reduction
+\item Sequence packing via SFTTrainer for improved token efficiency
+\item Gradient checkpointing for memory efficiency
+\item Windows compatibility (torch.compile disabled due to Triton conflicts)
+\end{itemize}
+
+\subsection{Base Model Sharing}
+
+A key innovation is base model sharing across multiple experts. When loading $n$ experts with the same base model:
+
+\textbf{Memory without sharing}:
+\begin{equation}
+M_{\text{total}} = n \times (M_{\text{base}} + M_{\text{adapter}})
+\end{equation}
+
+\textbf{Memory with sharing}:
+\begin{equation}
+M_{\text{total}} = M_{\text{base}} + n \times M_{\text{adapter}}
+\end{equation}
+
+For Qwen3-0.6B ($M_{\text{base}} \approx 1.2$GB) and typical adapters ($M_{\text{adapter}} \approx 0.025$GB):
+
+\begin{align}
+\text{Without sharing (3 experts)}: &\; 3 \times (1.2 + 0.025) = 3.675\text{GB} \\
+\text{With sharing (3 experts)}: &\; 1.2 + 3 \times 0.025 = 1.275\text{GB} \\
+\text{Savings}: &\; 65.3\%
+\end{align}
+
+\section{Experimental Validation}
+
+\subsection{Expert-SQL: Text-to-SQL Generation}
+
+We validate our architecture through expert-sql, a PostgreSQL query generation expert.
+
+\subsubsection{Dataset}
+
+\textbf{Source}: gretelai/synthetic\_text\_to\_sql (100,000 examples)
+
+\textbf{Preprocessing}:
+\begin{itemize}
+\item MySQL $\rightarrow$ PostgreSQL syntax conversion via sqlglot
+\item Validation: 99,935/100,000 passed (99.93\% valid)
+\item Deduplication: Removed exact question matches
+\item Format: ChatML (Qwen3 native)
+\item Size reduction: 77\% via text-only format
+\end{itemize}
+
+\subsubsection{Training Configuration}
+
+\begin{itemize}
+\item Base model: Qwen/Qwen3-0.6B
+\item Adapter: DoRA rank=12, alpha=24
+\item Dataset: 99,935 validated examples
+\item Epochs: 1.5 (save every 250 steps)
+\item Effective batch: 90 (2 $\times$ 45 gradient accumulation)
+\item Training time: $\sim$3 hours (RTX 4090 + Unsloth)
+\item VRAM usage: 0.56GB during training (2.3\% of 24GB)
+\end{itemize}
+
+\subsubsection{Checkpoint Evolution}
+
+We analyzed 5 checkpoints to study model evolution:
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Checkpoint} & \textbf{Epoch} & \textbf{Quality} & \textbf{Real-World} & \textbf{Status} \\
+\midrule
+Base Model & 0.0 & 0.0/10 & 0/30 (0\%) & No SQL \\
+CKP-750 & 0.75 & 8.5/10 & 30/30 (100\%) & Good \\
+CKP-1000 & 1.0 & 9.0/10 & 30/30 (100\%) & Better \\
+\textbf{CKP-1250} & \textbf{1.25} & \textbf{9.6/10} & \textbf{30/30 (100\%)} & \textbf{Best} \\
+CKP-1500 & 1.5 & 9.2/10 & 30/30 (100\%) & Degraded \\
+\bottomrule
+\end{tabular}
+\caption{Checkpoint evolution analysis. Quality score based on real-world query benchmark. CKP-1250 selected for production despite not being final checkpoint.}
+\label{tab:checkpoints}
+\end{table}
+
+\textbf{Key Finding}: The best checkpoint (1250, epoch 1.25) occurred before training completion, with the final checkpoint (1500, epoch 1.5) showing signs of overfitting. This validates the importance of checkpoint comparison rather than blindly using final weights.
+
+\subsection{Real-World Query Benchmark}
+
+We created a benchmark of 30 practical SQL scenarios across 8 categories:
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{Category} & \textbf{Scenarios} & \textbf{Success Rate} \\
+\midrule
+E-commerce & 5 & 5/5 (100\%) \\
+CRM & 4 & 4/4 (100\%) \\
+Analytics & 4 & 4/4 (100\%) \\
+Filters & 4 & 4/4 (100\%) \\
+Reports & 3 & 3/3 (100\%) \\
+Joins & 3 & 3/3 (100\%) \\
+Aggregations & 3 & 3/3 (100\%) \\
+Practical & 4 & 4/4 (100\%) \\
+\midrule
+\textbf{Total} & \textbf{30} & \textbf{30/30 (100\%)} \\
+\bottomrule
+\end{tabular}
+\caption{Real-world query benchmark results for checkpoint-1250. All queries generated syntactically valid PostgreSQL.}
+\label{tab:realworld}
+\end{table}
+
+\textbf{Query Complexity Distribution}:
+\begin{itemize}
+\item Basic (17/17): Simple SELECT, WHERE, ORDER BY, basic JOINs
+\item Intermediate (13/13): Multi-table JOINs, subqueries, aggregations, window functions
+\end{itemize}
+
+\subsection{Complex Scenario Analysis}
+
+We evaluated 10 advanced SQL patterns to identify limitations:
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{Scenario} & \textbf{Score} & \textbf{Status} \\
+\midrule
+Multiple JOIN + Aggregation & 8/10 & Good \\
+Correlated Subquery & 10/10 & Excellent \\
+Window Function & 9/10 & Excellent \\
+Complex HAVING & 9/10 & Excellent \\
+EXISTS vs IN & 10/10 & Excellent \\
+Subquery in SELECT/WHERE & 5/10 & Fair \\
+Multiple LEFT JOIN & 6/10 & Fair \\
+Nested CASE WHEN & 5/10 & Fair \\
+Recursive CTE & 2/10 & Weak \\
+UNION + Aggregations & 3/10 & Weak \\
+\midrule
+\textbf{Average} & \textbf{6.7/10} & \\
+\bottomrule
+\end{tabular}
+\caption{Qualitative analysis on complex SQL patterns. Model excels at common patterns but struggles with recursive CTEs and UNION operations.}
+\label{tab:complex}
+\end{table}
+
+\subsection{Performance Metrics}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lc}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Training time & 3 hours (RTX 4090) \\
+Training VRAM & 0.56GB (2.3\% utilization) \\
+Adapter size & 25.8MB (SafeTensors) \\
+Inference latency & 100-150ms per query \\
+Trainable parameters & 8.5M (1.4\% of base) \\
+\bottomrule
+\end{tabular}
+\caption{Performance characteristics of expert-sql on NVIDIA RTX 4090}
+\label{tab:performance}
+\end{table}
+
+\section{Methodology}
+
+\subsection{Dataset Preprocessing}
+
+Quality dataset preprocessing proved critical for expert performance:
+
+\begin{algorithm}
+\caption{SQL Dataset Preprocessing Pipeline}
+\begin{algorithmic}[1]
+\STATE Load dataset from HuggingFace
+\FOR{each example in dataset}
+    \IF{SQL syntax invalid (via sqlglot)}
+        \STATE Skip example
+    \ENDIF
+    \IF{MySQL syntax detected}
+        \STATE Convert to PostgreSQL
+        \STATE Fix YEAR(), MONTH() $\rightarrow$ EXTRACT()
+    \ENDIF
+    \IF{question is duplicate}
+        \STATE Skip example
+    \ENDIF
+    \STATE Format with ChatML template
+    \STATE Add to output dataset
+\ENDFOR
+\STATE Save as JSONL (text-only format)
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Training Strategy}
+
+We implemented several optimizations for consumer GPU training:
+
+\textbf{Memory Optimizations}:
+\begin{itemize}
+\item Small batch size (2) with high gradient accumulation (45)
+\item Gradient checkpointing (attention layers only)
+\item 8-bit optimizer (AdamW BNB)
+\item Unsloth integration for 70\% VRAM reduction
+\end{itemize}
+
+\textbf{Windows Compatibility}:
+\begin{itemize}
+\item Disabled torch.compile (Triton incompatibility)
+\item Single-process dataloader (num\_workers=0)
+\item Memory cleanup every 100 steps
+\end{itemize}
+
+\subsection{Checkpoint Selection}
+
+Rather than using the final checkpoint, we systematically evaluated all checkpoints:
+
+\begin{enumerate}
+\item Save checkpoint every 250 steps
+\item Keep all checkpoints (save\_total\_limit=null)
+\item Evaluate each checkpoint on real-world benchmark
+\item Select best checkpoint based on quality score
+\end{enumerate}
+
+For expert-sql, checkpoint-1250 (epoch 1.25) outperformed checkpoint-1500 (final), demonstrating that \textbf{the final checkpoint is not always optimal}.
+
+\section{Results}
+
+\subsection{Expert-SQL Quality Analysis}
+
+Checkpoint-1250 achieved:
+\begin{itemize}
+\item \textbf{Quality Score}: 9.6/10 (real-world benchmark)
+\item \textbf{Success Rate}: 100\% (30/30 queries)
+\item \textbf{Syntax Correctness}: 100\% valid PostgreSQL
+\item \textbf{Production Readiness}: 95\% of queries require no manual adjustment
+\end{itemize}
+
+\subsection{Strengths and Limitations}
+
+\textbf{Strengths} ($\geq$90\% success):
+\begin{itemize}
+\item SELECT queries with filtering and ordering
+\item INNER JOIN and multi-table joins (2-4 tables)
+\item Aggregations (COUNT, SUM, AVG, GROUP BY, HAVING)
+\item Subqueries (WHERE IN, EXISTS, NOT EXISTS)
+\item Date operations (EXTRACT, BETWEEN, INTERVAL)
+\item Window functions (ROW\_NUMBER, RANK, PARTITION BY)
+\item Common CTEs (WITH clause, non-recursive)
+\end{itemize}
+
+\textbf{Limitations} ($<$50\% success):
+\begin{itemize}
+\item Recursive CTEs (WITH RECURSIVE) - generates self-join instead
+\item UNION/UNION ALL - incorrectly uses JOIN with OR
+\item LEFT JOIN with NULL checks - prefers INNER JOIN
+\item Complex percentage calculations - division logic errors
+\item Deeply nested CASE WHEN (3+ levels)
+\end{itemize}
+
+\subsection{Memory Efficiency}
+
+For a deployment with 3 experts (SQL, Neo4j, Python):
+
+\begin{align}
+\text{Individual loading}: &\; 3 \times 1.2\text{GB} = 3.6\text{GB} \\
+\text{Shared base model}: &\; 1.2 + 3 \times 0.025 = 1.275\text{GB} \\
+\text{Memory savings}: &\; 64.6\%
+\end{align}
+
+This enables running multiple specialized experts on consumer GPUs (8GB VRAM) that would otherwise be insufficient.
+
+\section{Discussion}
+
+\subsection{Advantages of Runtime Composition}
+
+\textbf{Independent Development}: Each expert can be trained, validated, and distributed independently. This enables:
+\begin{itemize}
+\item Rapid iteration on individual experts without affecting others
+\item Community-driven expert marketplace
+\item Easy bug fixes (update single expert, not entire model)
+\end{itemize}
+
+\textbf{Memory Efficiency}: Base model sharing reduces memory footprint by 50-70\% compared to loading experts separately.
+
+\textbf{Flexibility}: Unlike MoE where experts are fixed at training time, new experts can be added anytime without retraining existing ones.
+
+\subsection{Limitations and Future Work}
+
+\textbf{Current Limitations}:
+\begin{itemize}
+\item \textbf{Limited Production Validation}: Expert-sql tested only on synthetic benchmarks, not production workloads
+\item \textbf{Single Expert Evaluated}: Only SQL expert fully validated; Neo4j and others in training
+\item \textbf{Heuristic Routing}: Router uses keywords/embeddings, not learned selection
+\item \textbf{No Adapter Merging}: Cannot combine multiple adapters simultaneously (planned)
+\item \textbf{Query-Level Granularity}: Per-token expert routing not supported
+\end{itemize}
+
+\textbf{Planned Improvements}:
+\begin{enumerate}
+\item Production deployment with real user queries
+\item Training and validation of 6+ experts (Neo4j, TypeScript, Python, Rust, JSON, English)
+\item Learned routing component (mini-policy network)
+\item Adapter composition (LoRA arithmetic)
+\item Inference runtime in Rust (Candle-based)
+\item Benchmark against GPT-3.5/4 on specialized tasks
+\end{enumerate}
+
+\subsection{Checkpoint Selection Insights}
+
+Our analysis reveals that:
+\begin{itemize}
+\item Quality scores do not increase monotonically with training steps
+\item Overfitting can occur even with 99k training examples
+\item Systematic checkpoint evaluation is essential
+\item Early stopping based on eval loss may miss optimal checkpoint
+\end{itemize}
+
+We recommend: \textbf{Save all checkpoints and evaluate systematically} rather than relying on final weights or early stopping heuristics.
+
+\section{Experimental Nature and Limitations}
+
+\textbf{IMPORTANT}: This work is \textbf{experimental} and has significant limitations:
+
+\subsection{Limited Real-World Validation}
+
+\begin{itemize}
+\item Only 1 expert (SQL) fully trained and evaluated
+\item Benchmarks are synthetic, not from production systems
+\item No user studies or production deployment data
+\item Success metrics may not generalize to real applications
+\end{itemize}
+
+\subsection{Scalability Unknowns}
+
+\begin{itemize}
+\item Maximum number of experts not empirically validated
+\item Routing quality with 10+ experts untested
+\item Adapter hot-swap latency measured on single GPU only
+\item Multi-GPU / distributed deployment not explored
+\end{itemize}
+
+\subsection{Generalization Concerns}
+
+\begin{itemize}
+\item Expert-sql trained on synthetic data (gretelai)
+\item Performance on real business databases unknown
+\item Edge cases and rare SQL patterns not covered
+\item Domain-specific query patterns may differ significantly
+\end{itemize}
+
+\subsection{Ongoing Work}
+
+The following experts are currently in training:
+\begin{itemize}
+\item expert-neo4j: Cypher query generation (29,512 examples)
+\item expert-typescript: Code generation (planned)
+\item expert-python: Code generation (planned)
+\item expert-json: JSON parsing (planned)
+\item expert-english: Language understanding (planned)
+\end{itemize}
+
+\textbf{Validation plan}: Each expert will undergo similar real-world benchmarking and checkpoint analysis before production recommendation.
+
+\section{Conclusion}
+
+We present HiveLLM Expert System, a runtime-composable adapter architecture for specialized inference on consumer GPUs. Our key insight is that \textit{independent expert training and dynamic loading} provides a viable alternative to both monolithic LLMs and Mixture-of-Experts architectures.
+
+Through expert-sql, we demonstrate:
+\begin{enumerate}
+\item 100\% success rate on 30 real-world SQL generation tasks
+\item 64\% memory savings through base model sharing
+\item Importance of systematic checkpoint evaluation
+\item Feasibility of high-quality expert training with <4 hours on consumer GPU
+\end{enumerate}
+
+\textbf{However}, this work is \textbf{experimental}. Significant validation remains:
+\begin{itemize}
+\item Production deployment with real user queries
+\item Evaluation of additional experts beyond SQL
+\item Scalability testing with 10+ experts
+\item Comparison with commercial alternatives (GPT-3.5, Claude)
+\end{itemize}
+
+We release this work as open-source to enable community validation and encourage further research into modular, composable AI systems for resource-constrained environments.
+
+\section*{Acknowledgments}
+
+This work builds upon LoRA \cite{hu2021lora}, DoRA \cite{liu2024dora}, Unsloth \cite{unsloth}, and LLaMA-Factory \cite{llamafactory}. We thank the gretelai team for the synthetic\_text\_to\_sql dataset and the Neo4j team for text2cypher-2025v1.
+
+\begin{thebibliography}{9}
+
+\bibitem{hu2021lora}
+Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen.
+\textit{LoRA: Low-Rank Adaptation of Large Language Models}.
+arXiv preprint arXiv:2106.09685, 2021.
+
+\bibitem{liu2024dora}
+Shih-Yang Liu, Chien-Yi Wang, Hongxu Yin, Pavlo Molchanov, Yu-Chiang Frank Wang, Kwang-Ting Cheng, and Min-Hung Chen.
+\textit{DoRA: Weight-Decomposed Low-Rank Adaptation}.
+arXiv preprint arXiv:2402.09353, 2024.
+
+\bibitem{liu2022ia3}
+Haokun Liu, Derek Tam, Mohammed Muqeeth, Jay Mohta, Tenghao Huang, Mohit Bansal, and Colin Raffel.
+\textit{Few-Shot Parameter-Efficient Fine-Tuning is Better and Cheaper than In-Context Learning}.
+arXiv preprint arXiv:2205.05638, 2022.
+
+\bibitem{shazeer2017mixtral}
+Noam Shazeer, Azalia Mirhoseini, Krzysztof Maziarz, Andy Davis, Quoc Le, Geoffrey Hinton, and Jeff Dean.
+\textit{Outrageously Large Neural Networks: The Sparsely-Gated Mixture-of-Experts Layer}.
+arXiv preprint arXiv:1701.06538, 2017.
+
+\bibitem{wortsman2022model}
+Mitchell Wortsman, Gabriel Ilharco, Samir Yitzhak Gadre, Rebecca Roelofs, Raphael Gontijo-Lopes, Ari S. Morcos, Hongseok Namkoong, Ali Farhadi, Yair Carmon, Simon Kornblith, and Ludwig Schmidt.
+\textit{Model soups: averaging weights of multiple fine-tuned models improves accuracy without increasing inference time}.
+ICML 2022.
+
+\bibitem{unsloth}
+Unsloth AI.
+\textit{Unsloth: 2-5x Faster LLM Finetuning}.
+\url{https://github.com/unslothai/unsloth}, 2024.
+
+\bibitem{llamafactory}
+LLaMA-Factory Contributors.
+\textit{LLaMA-Factory: Efficient Fine-Tuning of Large Language Models}.
+\url{https://github.com/hiyouga/LLaMA-Factory}, 2024.
+
+\end{thebibliography}
+
+\appendix
+
+\section{Appendix A: Expert Package Format}
+
+The \texttt{.expert} package format (v2.0) contains:
+
+\begin{lstlisting}
+expert-sql-qwen3-0-6b.v0.2.0.expert (tar.gz, 25.9 MB)
+├── manifest.json                 # Expert metadata
+├── adapter_config.json           # PEFT configuration
+├── adapter_model.safetensors     # Adapter weights
+├── tokenizer.json                # Tokenizer vocabulary
+├── tokenizer_config.json         # Tokenizer config
+├── special_tokens_map.json       # Special tokens
+├── training_args.bin             # Training hyperparams
+├── vocab.json                    # Vocabulary mappings
+├── README.md                     # Documentation
+├── grammar.gbnf                  # Grammar constraints
+└── LICENSE                       # License info
+\end{lstlisting}
+
+All files are placed in the archive root (no subdirectories) for simplified loading.
+
+\section{Appendix B: Sample Generated Queries}
+
+\textbf{E-commerce Query}:
+\begin{lstlisting}[language=SQL]
+-- Input: "Show products with low stock"
+SELECT name, price, stock 
+FROM products 
+WHERE stock < min_stock 
+ORDER BY stock ASC;
+\end{lstlisting}
+
+\textbf{CRM Query with Subquery}:
+\begin{lstlisting}[language=SQL]
+-- Input: "Find customers without orders"
+SELECT c.name 
+FROM customers c 
+WHERE NOT EXISTS (
+  SELECT o.customer_id FROM orders o 
+  WHERE o.customer_id = c.id
+);
+\end{lstlisting}
+
+\textbf{Analytics with Window Function}:
+\begin{lstlisting}[language=SQL]
+-- Input: "Sales ranking by region"
+SELECT salesperson, region, 
+  ROW_NUMBER() OVER (
+    PARTITION BY region 
+    ORDER BY SUM(amount) DESC
+  ) as rank
+FROM sales 
+GROUP BY salesperson, region;
+\end{lstlisting}
+
+\section{Appendix C: Reproducibility}
+
+All code, datasets, and trained models are open-source:
+
+\begin{itemize}
+\item Repository: \url{https://github.com/hivellm/expert}
+\item Expert-SQL v0.2.0: Tag \texttt{v0.2.0}
+\item Dataset: gretelai/synthetic\_text\_to\_sql (HuggingFace)
+\item Base model: Qwen/Qwen3-0.6B
+\item Training script: \texttt{expert/cli/expert\_trainer.py}
+\item Manifest: \texttt{expert/experts/expert-sql/manifest.json}
+\end{itemize}
+
+\textbf{Hardware Requirements}:
+\begin{itemize}
+\item GPU: NVIDIA RTX 3060 (8GB) minimum, RTX 4090 (24GB) recommended
+\item CUDA: 12.1+
+\item PyTorch: 2.5.1+cu121
+\item Unsloth: Optional (2x speedup)
+\end{itemize}
+
+\end{document}
+

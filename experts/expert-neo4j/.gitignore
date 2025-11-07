@@ -1,0 +1,58 @@
+# Dataset directories
+datasets/
+datasets_optimized/
+weights/
+*.arrow
+*.jsonl
+*.arrow
+*.parquet
+
+# Training outputs (if training is run from this directory)
+weights/
+checkpoints/
+runs/
+logs/
+*.safetensors
+*.bin
+*.pt
+
+# Python cache
+__pycache__/
+.pytest_cache/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Virtual environments
+venv/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+
+# Keep these files
+!manifest.json
+!preprocess.py
+!README.md
+!.gitignore
+
+# Unsloth compiled cache (now centralized in expert/cache/)
+# This directory is deprecated and can be safely deleted
+unsloth_compiled_cache/

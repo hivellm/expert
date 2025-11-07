@@ -1,0 +1,298 @@
+{
+  "name": "expert-neo4j",
+  "version": "0.2.1",
+  "schema_version": "2.0",
+  "description": "Neo4j Cypher query generation expert. Trained on 29,772 validated examples from multiple sources (neo4j/text2cypher-2025v1, Neo4j official documentation). Optimized for graph database queries with MATCH, CREATE, relationships, and pattern matching.",
+  "author": "hivellm",
+  "homepage": "https://github.com/hivellm/expert-neo4j",
+  
+  "base_models": [
+    {
+      "name": "F:/Node/hivellm/expert/models/Qwen3-0.6B",
+      "sha256": "",
+      "quantization": "int4",
+      "rope_scaling": {
+        "type": "ntk-by-parts",
+        "factor": 8.0,
+        "max_position_embeddings": 32768,
+        "original_max_position_embeddings": 8192,
+        "fine_grained": true,
+        "_comment": "Qwen3-specific NTK-by-parts scaling (β=0.25). Matches Rust implementation."
+      },
+      "prompt_template": "chatml",
+      "adapters": [
+        {
+          "type": "dora",
+          "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "up_proj", "down_proj"],
+          "r": 16,
+          "alpha": 32,
+          "scaling": "dora",
+          "dropout": 0.1,
+          "path": "qwen3-06b/final",
+          "checkpoint_step": 655,
+          "size_bytes": 0,
+          "sha256": "",
+          "_comment": "DoRA r=16, final checkpoint (655 steps). Quality: 9.13/10 (+37.5% vs base). Best for: MATCH patterns, COUNT/SUM aggregations, multi-hop traversals. Trained on 29,772 examples from multiple sources (neo4j/text2cypher-2025v1 + Neo4j official documentation)."
+        }
+      ]
+    }
+  ],
+  
+  "soft_prompts": [],
+  
+  "capabilities": [
+    "database:neo4j",
+    "database:graph",
+    "query:cypher",
+    "task:text2cypher",
+    "feature:schema_understanding",
+    "feature:node_queries",
+    "feature:relationship_queries",
+    "feature:pattern_matching",
+    "feature:match_queries",
+    "feature:create_queries",
+    "feature:merge_queries",
+    "feature:where_filtering",
+    "feature:return_projection",
+    "feature:aggregation",
+    "feature:order_limit",
+    "feature:path_queries",
+    "feature:with_clause",
+    "usecase:graph_analytics",
+    "usecase:social_networks",
+    "usecase:knowledge_graphs",
+    "usecase:recommendation",
+    "language:en"
+  ],
+  
+  "limitations": [
+    "avg_group_by_queries",
+    "complex_string_pattern_matching",
+    "relationship_temporal_filters"
+  ],
+  
+  "quality_metrics": {
+    "benchmark_score": 9.13,
+    "base_model_score": 6.64,
+    "improvement_percent": 37.5,
+    "win_rate_vs_base": 0.85,
+    "test_queries": 20,
+    "checkpoint": "final",
+    "training_steps": 655,
+    "test_date": "2025-11-06",
+    "_comment": "Qualitative analysis on 20 diverse Cypher queries. Strengths: MATCH patterns (10/10), aggregations (10/10), multi-hop (10/10). Weaknesses: AVG GROUP BY (4.2/10), string patterns (6.4/10)."
+  },
+  
+  "routing": {
+    "keywords": [
+      "neo4j",
+      "cypher",
+      "graph",
+      "text2cypher",
+      "graph database",
+      "node",
+      "relationship",
+      "match",
+      "pattern matching",
+      "graph query",
+      "graph analytics",
+      "path",
+      "traversal",
+      "return",
+      "where"
+    ],
+    "exclude_keywords": [
+      "what is",
+      "what are",
+      "explain",
+      "meaning",
+      "definition",
+      "describe",
+      "tell me about",
+      "how does",
+      "why"
+    ],
+    "router_hint": "tech=neo4j OR query=cypher OR task=text2cypher OR database=graph",
+    "priority": 0.90,
+    "_comment": "High priority (0.90) due to excellent performance (9.13/10) on Neo4j queries. exclude_keywords prevent using expert for explanatory questions."
+  },
+  
+  "constraints": {
+    "max_chain": 10,
+    "load_order": 6,
+    "incompatible_with": [],
+    "requires": []
+  },
+  
+  "perf": {
+    "latency_ms_overhead": 3.5,
+    "vram_mb_overhead": 25,
+    "supported_batch_sizes": [1, 2, 4, 8],
+    "_comment": "DoRA r=20 needs 25MB VRAM (higher rank than SQL). Grammar validation adds 1ms latency."
+  },
+
+  "runtime": {
+    "candle_compatible": true,
+    "requires_kv_cache_persistence": true,
+    "attention_kernel": "flash-v2",
+    "_comment": "Metadata for Rust/Candle runtime. Qwen3 uses custom flash attention kernel (not standard SDPA)."
+  },
+  
+  "training": {
+    "dataset": {
+      "path": "datasets/train.jsonl",
+      "format": "jsonl",
+      "streaming": false,
+      "source": "multi-source",
+      "sources": [
+        {
+          "name": "neo4j/text2cypher-2025v1",
+          "original_examples": 35946,
+          "processed_examples": 29512,
+          "duplicates_removed": 6431,
+          "invalid_removed": 3
+        },
+        {
+          "name": "megagonlabs/cypherbench",
+          "original_examples": 8534,
+          "processed_examples": 8529,
+          "duplicates_removed": 5,
+          "invalid_removed": 0
+        },
+        {
+          "name": "synthetic_fixes",
+          "original_examples": 200,
+          "processed_examples": 200,
+          "duplicates_removed": 0,
+          "invalid_removed": 0
+        },
+        {
+          "name": "neo4j_official_documentation",
+          "original_examples": 321,
+          "processed_examples": 315,
+          "duplicates_removed": 6,
+          "invalid_removed": 0
+        }
+      ],
+      "preprocessing": {
+        "total_examples": 36267,
+        "processed_examples": 29772,
+        "duplicates_removed": 6489,
+        "invalid_cypher_removed": 6,
+        "validation": "basic_cypher_syntax",
+        "format": "chatml",
+        "deduplication": "by_question",
+        "schema_extraction": "from_cypher_queries"
+      },
+      "_comment": "Multi-source dataset: 29,772 validated examples (29,512 from neo4j/text2cypher-2025v1, 8,529 from megagonlabs/cypherbench, 200 synthetic, 315 from Neo4j official documentation). Basic Cypher validation, deduplicated across sources. ChatML formatted for Qwen3. Schemas extracted from Cypher queries for cypherbench examples.",
+      "field_mapping": {
+        "text": "text"
+      }
+    },
+    "config": {
+      "method": "sft",
+      "adapter_type": "dora",
+      "use_unsloth": true,
+      "_unsloth_comment": "Enable Unsloth for 2x faster training and 70% less VRAM. Requires: pip install 'unsloth[windows] @ git+https://github.com/unslothai/unsloth.git'",
+      "rank": 16,
+      "alpha": 32,
+      "dropout": 0.1,
+      "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "up_proj", "down_proj"],
+      "epochs": 2.0,
+      "_comment": "DoRA r=16, LLaMA-Factory optimized params. Lower LR (5e-5) + higher dropout (0.1) for better generalization.",
+      "learning_rate": 5e-5,
+      "batch_size": 2,
+      "_batch_comment": "Reduced from 6 to 2 for Windows memory safety. Compensated with gradient_accumulation_steps=45 (effective batch=90).",
+      "gradient_accumulation_steps": 45,
+      "warmup_steps": 0,
+      "warmup_ratio": 0.1,
+      "_warmup_comment": "Using warmup_ratio=0.1 (10%, LLaMA-Factory best practice) = ~66 steps. warmup_steps=0 when using ratio.",
+      "lr_scheduler": "cosine",
+      "_scheduler_comment": "Simple cosine decay. More conservative to prevent pattern overfitting.",
+      "max_seq_length": 1024,
+      "dataloader_num_workers": 0,
+      "dataloader_pin_memory": false,
+      "dataloader_prefetch_factor": 1,
+      "dataloader_persistent_workers": false,
+      "_dataloader_comment": "Windows fixes: num_workers=0, pin_memory=false, persistent_workers=false. Prevents worker memory copies and leaks.",
+      "fp16": false,
+      "bf16": true,
+      "use_tf32": true,
+      "use_sdpa": true,
+      "flash_attention_2": false,
+      "packing": true,
+      "memory_efficient_attention": true,
+      "memory_clear_every": 100,
+      "torch_compile": false,
+      "torch_compile_backend": "inductor",
+      "torch_compile_mode": "reduce-overhead",
+      "_compile_comment": "Windows fix: torch_compile=false (Triton incompatible with PyTorch 2.5.1 on Windows). Unsloth provides enough speedup.",
+      "optim": "adamw_bnb_8bit",
+      "group_by_length": false,
+      "logging_steps": 10,
+      "save_strategy": "steps",
+      "save_steps": 250,
+      "save_total_limit": null,
+      "_checkpoint_strategy": "All checkpoints analyzed (250, 500, 592, 655). Selected: final (655 steps, 9.13/10). Checkpoint-500 better for AVG GROUP BY (10/10 vs 4.2/10).",
+      "evaluation_strategy": "steps",
+      "eval_steps": 250,
+      "load_best_model_at_end": true,
+      "metric_for_best_model": "eval_loss",
+      "greater_is_better": false,
+      "gradient_checkpointing": true,
+      "activation_checkpointing": "attention_only",
+      "use_cuda_graphs": true,
+      "cuda_graph_warmup_steps": 100,
+      "_cuda_graphs_comment": "Windows fix: use_cuda_graphs=false (unstable on Windows). CUDA graphs require torch.compile which leaks memory."
+    },
+    "decoding": {
+      "use_grammar": true,
+      "grammar_type": "cypher",
+      "validation": "parser-strict",
+      "stop_sequences": ["\n\n"],
+      "temperature": 0.7,
+      "top_p": 0.8,
+      "top_k": 20,
+      "_comment": "Unsloth/Qwen recommended settings: temp=0.7, top_p=0.8, top_k=20. Prevents repetition collapse. Grammar validation prevents syntax errors."
+    },
+    "alternative_checkpoints": {
+      "checkpoint-500": {
+        "path": "qwen3-06b/checkpoint-500",
+        "step": 500,
+        "score": 8.58,
+        "win_rate": 0.80,
+        "best_for": ["avg_group_by", "aggregation_grouping"],
+        "_comment": "Alternative checkpoint excellent for AVG with GROUP BY (10/10 vs final's 4.2/10). Overall score: 8.58/10."
+      },
+      "checkpoint-592": {
+        "path": "qwen3-06b/checkpoint-592",
+        "step": 592,
+        "score": 8.69,
+        "win_rate": 0.80,
+        "best_for": ["string_pattern_matching"],
+        "_comment": "Best for CONTAINS patterns (10/10 vs final's 6.4/10). Overall score: 8.69/10."
+      }
+    },
+    "trained_on": "2025-11-06",
+    "base_model_version": "qwen3-0.6b"
+  },
+  
+  "license": "apache-2.0",
+  "tags": [
+    "neo4j",
+    "cypher",
+    "graph-database",
+    "text2cypher",
+    "database",
+    "qwen3",
+    "dora",
+    "unsloth",
+    "windows",
+    "query-generation",
+    "graph-analytics",
+    "knowledge-graphs",
+    "pattern-matching",
+    "relationships",
+    "nodes"
+  ]
+}

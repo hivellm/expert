@@ -1,0 +1,218 @@
+name: Build and publish release packages
+permissions:
+  contents: write
+on:
+  release:
+    # 'published' is triggered when publishing draft release, 'created' is not
+    types: [published]
+
+jobs:
+  # Separated Linux builds - each runs independently
+  # If one fails, others continue
+  
+  build-linux-x86_64-gnu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-multilib clang cmake python3 python3-pip
+          rustup default nightly
+          rustup update
+      - name: Install Python dependencies
+        run: |
+          pip3 install --upgrade pip
+          pip3 install -r requirements.txt
+      - name: Build and publish expert-cli
+        uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: expert-cli
+          target: x86_64-unknown-linux-gnu
+          token: ${{ secrets.GITHUB_TOKEN }}
+  
+  build-linux-x86_64-musl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-multilib clang cmake python3 python3-pip
+          rustup default nightly
+          rustup update
+      - name: Install cross-compilation tools
+        uses: taiki-e/setup-cross-toolchain-action@v1
+        with:
+          target: x86_64-unknown-linux-musl
+      - name: Build musl binaries
+        run: |
+          cargo build --release --target x86_64-unknown-linux-musl --no-default-features
+          mkdir -p dist
+          cp target/x86_64-unknown-linux-musl/release/expert-cli dist/expert-cli-x86_64-unknown-linux-musl
+      - name: Upload musl binaries
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: dist/*
+          tag: ${{ github.ref }}
+          overwrite: true
+          file_glob: true
+      - name: Build Debian Package
+        run: |
+          cargo install cargo-deb
+          cargo deb --no-strip --target x86_64-unknown-linux-musl --no-default-features
+      - name: Upload Debian package
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/x86_64-unknown-linux-musl/debian/*.deb
+          tag: ${{ github.ref }}
+          overwrite: true
+          file_glob: true
+  
+  build-linux-aarch64-musl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-multilib clang cmake
+          rustup default nightly
+          rustup update
+      - name: Install cross-compilation tools
+        uses: taiki-e/setup-cross-toolchain-action@v1
+        with:
+          target: aarch64-unknown-linux-musl
+      - name: Build musl binaries
+        run: |
+          cargo build --release --target aarch64-unknown-linux-musl --no-default-features
+          mkdir -p dist
+          cp target/aarch64-unknown-linux-musl/release/expert-cli dist/expert-cli-aarch64-unknown-linux-musl
+      - name: Upload musl binaries
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: dist/*
+          tag: ${{ github.ref }}
+          overwrite: true
+          file_glob: true
+
+  build-mac-binaries:
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Install dependencies
+        run: |
+          brew update-reset
+          brew install gcc cmake python@3.12
+          rustup default nightly
+          rustup update
+          rustup show
+          cargo -Vv
+      - uses: actions/checkout@v5
+      - name: Install Python dependencies
+        run: |
+          pip3 install --upgrade pip
+          pip3 install -r requirements.txt
+      - name: Build and publish expert-cli
+        uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: expert-cli
+          target: ${{ matrix.target }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  build-windows-binaries:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Install nightly toolchain
+        uses: dtolnay/rust-toolchain@nightly
+      - uses: actions/checkout@v5
+      - uses: Swatinem/rust-cache@v2
+
+      # Setup Python
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+        shell: pwsh
+
+      # Build without CUDA for releases (CUDA binaries require specific hardware)
+      - name: Build
+        run: cargo build --release
+        shell: pwsh
+
+      - name: Build and publish expert-cli
+        uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: expert-cli
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  build-windows-cuda:
+    runs-on: windows-latest
+    steps:
+      - name: Install nightly toolchain
+        uses: dtolnay/rust-toolchain@nightly
+      - uses: actions/checkout@v5
+      - uses: Swatinem/rust-cache@v2
+
+      # Setup Python
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cu121
+          pip install -r requirements.txt
+        shell: pwsh
+
+      # Install CUDA Toolkit
+      - name: Install CUDA
+        uses: Jimver/cuda-toolkit@v0.2.14
+        with:
+          cuda: '12.6.0'
+          method: 'network'
+          sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev"]'
+      
+      # Build with CUDA support
+      - name: Build with CUDA
+        run: |
+          $env:CUDA_PATH = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6"
+          $env:CUDA_ROOT = $env:CUDA_PATH
+          cargo build --release --features cuda
+        shell: pwsh
+      
+      - name: Create CUDA release artifact
+        run: |
+          mkdir dist-cuda
+          cp target/release/expert-cli.exe dist-cuda/expert-cli-cuda.exe
+        shell: pwsh
+      
+      - name: Upload CUDA binary
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: dist-cuda/expert-cli-cuda.exe
+          asset_name: expert-cli-x86_64-windows-cuda.exe
+          tag: ${{ github.ref }}
+          overwrite: true
+

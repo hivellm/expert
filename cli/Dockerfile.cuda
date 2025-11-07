@@ -1,0 +1,77 @@
+# Multi-stage Dockerfile for HiveLLM Expert CLI with CUDA support
+# Builds Rust CLI with CUDA inference + Python training environment
+
+# Stage 1: Rust build with CUDA
+FROM nvidia/cuda:12.6.0-devel-ubuntu22.04 AS rust-builder
+
+# Install Rust and build dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Set working directory
+WORKDIR /build
+
+# Copy Cargo files
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+COPY tests ./tests
+
+# Build with CUDA support
+RUN cargo build --release --features cuda
+
+# Stage 2: Python training environment with CUDA
+FROM nvidia/cuda:12.6.0-runtime-ubuntu22.04
+
+# Install Python 3.12 and dependencies
+RUN apt-get update && apt-get install -y \
+    python3.12 \
+    python3.12-venv \
+    python3-pip \
+    git \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create symbolic links for python
+RUN ln -sf /usr/bin/python3.12 /usr/bin/python3 && \
+    ln -sf /usr/bin/python3 /usr/bin/python
+
+# Set working directory
+WORKDIR /app
+
+# Copy Python requirements
+COPY requirements.txt ./
+COPY expert_trainer.py ./
+COPY scripts ./scripts
+
+# Install Python dependencies
+RUN pip3 install --no-cache-dir -U pip setuptools wheel && \
+    pip3 install --no-cache-dir -r requirements.txt
+
+# Copy Rust binary from builder
+COPY --from=rust-builder /build/target/release/expert-cli /usr/local/bin/expert-cli
+
+# Create directories for models and experts
+RUN mkdir -p /models /experts /datasets
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV CUDA_VISIBLE_DEVICES=0
+ENV HF_HOME=/models/cache
+
+# Default command
+CMD ["expert-cli", "--help"]
+
+# Usage:
+# Build: docker build -f Dockerfile.cuda -t hivellm-expert:cuda .
+# Run training: docker run --gpus all -v $(pwd)/experts:/experts -v $(pwd)/models:/models hivellm-expert:cuda expert-cli train --manifest /experts/manifest.json
+# Run chat: docker run --gpus all -it -v $(pwd)/models:/models hivellm-expert:cuda expert-cli chat
+

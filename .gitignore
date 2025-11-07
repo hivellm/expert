@@ -1,0 +1,33 @@
+# Expert System - Centralized Gitignore
+
+# Centralized cache directory
+cache/
+
+# Build artifacts
+target/
+dist/
+build/
+models/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Rust artifacts
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/

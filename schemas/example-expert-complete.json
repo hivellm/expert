@@ -1,0 +1,184 @@
+{
+  "name": "expert-example",
+  "version": "1.0.0",
+  "schema_version": "2.0",
+  "description": "Complete example expert manifest with all possible fields",
+  "author": "hivellm",
+  "homepage": "https://github.com/hivellm/expert-example",
+  
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hivellm/expert-example.git"
+  },
+  
+  "base_models": [
+    {
+      "name": "F:/Node/hivellm/expert/models/Qwen3-0.6B",
+      "sha256": "abc123...",
+      "quantization": "int4",
+      "rope_scaling": {
+        "type": "ntk-by-parts",
+        "factor": 8.0,
+        "max_position_embeddings": 32768,
+        "original_max_position_embeddings": 8192,
+        "fine_grained": true,
+        "_comment": "Qwen3-specific NTK-by-parts scaling (β=0.25). Matches Rust qwen3_model.rs implementation."
+      },
+      "prompt_template": "chatml",
+      "adapters": [
+        {
+          "type": "dora",
+          "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "up_proj", "down_proj"],
+          "r": 12,
+          "alpha": 24,
+          "scaling": "dora",
+          "dropout": 0.05,
+          "path": "qwen3-06b/adapter/adapter_model.safetensors",
+          "size_bytes": 18874368,
+          "sha256": "def456...",
+          "_comment": "DoRA r=12 for complex tasks. Better quality than LoRA at same rank."
+        }
+      ]
+    }
+  ],
+  
+  "soft_prompts": [
+    {
+      "name": "style_enforcement",
+      "path": "soft_prompts/style_48.bin",
+      "tokens": 48,
+      "init_method": "text",
+      "init_text": "Follow strict formatting conventions. Generate clean, professional output.",
+      "purpose": "Enforce output style and conventions"
+    }
+  ],
+  
+  "capabilities": [
+    "task:example",
+    "language:en",
+    "feature:example_feature"
+  ],
+  
+  "routing": {
+    "keywords": [
+      "example",
+      "test",
+      "demo"
+    ],
+    "router_hint": "task=example OR keyword=test",
+    "priority": 0.75
+  },
+  
+  "constraints": {
+    "max_chain": 10,
+    "load_order": 5,
+    "incompatible_with": [],
+    "requires": []
+  },
+  
+  "perf": {
+    "latency_ms_overhead": 3.0,
+    "vram_mb_overhead": 18,
+    "supported_batch_sizes": [1, 2, 4, 8],
+    "_comment": "DoRA r=12 needs ~18MB VRAM. Grammar validation adds ~0.5ms latency."
+  },
+  
+  "runtime": {
+    "candle_compatible": true,
+    "requires_kv_cache_persistence": true,
+    "attention_kernel": "flash-v2",
+    "_comment": "Metadata for Rust/Candle runtime. Not yet used, but documents requirements."
+  },
+  
+  "training": {
+    "dataset": {
+      "path": "username/dataset-name",
+      "format": "huggingface",
+      "field_mapping": {
+        "instruction": "question",
+        "input": "context",
+        "response": "answer"
+      },
+      "validation": {
+        "deduplicate": true,
+        "min_length": 10,
+        "max_length": 2048
+      },
+      "augmentation": {
+        "_comment": "FUTURE: Not implemented in expert_trainer.py yet",
+        "schema_injection_prob": 0.85,
+        "table_aliases": true,
+        "comment_stripping": false,
+        "case_normalization": "preserve"
+      }
+    },
+    "config": {
+      "method": "sft",
+      "adapter_type": "dora",
+      "use_unsloth": false,
+      "rank": 12,
+      "alpha": 24,
+      "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "up_proj", "down_proj"],
+      "epochs": 3,
+      "learning_rate": 0.0003,
+      "batch_size": 16,
+      "gradient_accumulation_steps": 4,
+      "warmup_steps": 0,
+      "warmup_ratio": 0.1,
+      "lr_scheduler": "cosine",
+      "max_seq_length": 2048,
+      "dataloader_num_workers": 8,
+      "dataloader_pin_memory": true,
+      "dataloader_prefetch_factor": 8,
+      "dataloader_persistent_workers": true,
+      "fp16": false,
+      "bf16": true,
+      "use_tf32": true,
+      "use_sdpa": true,
+      "optim": "adamw_torch_fused",
+      "group_by_length": true,
+      "logging_steps": 10,
+      "save_strategy": "steps",
+      "save_steps": 500,
+      "save_total_limit": 3,
+      "evaluation_strategy": "steps",
+      "eval_steps": 500,
+      "load_best_model_at_end": true,
+      "metric_for_best_model": "eval_loss",
+      "greater_is_better": false,
+      "gradient_checkpointing": false,
+      "pretokenized_cache": "datasets_optimized/expert-example/tokenized",
+      "_comment": "DoRA with full module coverage (attention + MLP) for best quality. Checkpoints every 500 steps."
+    },
+    "decoding": {
+      "_comment": "FUTURE: Not yet used by Rust runtime (hardcoded in chat.rs). Metadata for future implementation.",
+      "use_grammar": true,
+      "grammar_type": "sql-postgres",
+      "validation": "parser-strict",
+      "stop_sequences": [";", "\n\n"],
+      "temperature": 0.1,
+      "top_p": 0.9,
+      "top_k": 50
+    },
+    "trained_on": "2025-11-04",
+    "base_model_version": "qwen3-0.6b-int4"
+  },
+  
+  "evaluation": {
+    "test_cases": "tests/test_cases.json",
+    "metrics": {
+      "exact_match": 0.92,
+      "execution_accuracy": 0.95
+    }
+  },
+  
+  "integrity": {
+    "timestamp": "2025-11-04T12:00:00Z",
+    "public_key": "abc123def456...",
+    "signature": "789012ghi345..."
+  },
+  
+  "license": "MIT",
+  "tags": ["example", "demo", "template"]
+}
+

@@ -1,0 +1,63 @@
+MIT License
+
+Copyright (c) 2025 HiveLLM Team
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+Dataset Licenses:
+
+1. mhhmm/typescript-instruct-20k-v2c:
+   - Source: mhhmm. 2024.
+   - "TypeScript Instruction Dataset - 20k instruction-output pairs"
+   - https://huggingface.co/datasets/mhhmm/typescript-instruct-20k-v2c
+   - License: MIT (matches this work)
+   - Examples: 19,994
+
+2. TypeScript Handbook Documentation:
+   - Source: TypeScript Team (Microsoft). 2024.
+   - "TypeScript Handbook - Official Documentation"
+   - https://www.typescriptlang.org/docs/
+   - License: Apache 2.0 (compatible with MIT)
+   - Examples: 155 (extracted)
+
+3. bigcode/the-stack (TypeScript subset):
+   - Source: BigCode. 2024.
+   - "The Stack - Large-scale code dataset"
+   - https://huggingface.co/datasets/bigcode/the-stack
+   - License: BigCode OpenRAIL-M (compatible with MIT)
+   - Examples: 298,543 (filtered from multiple batches, 50,026 duplicates removed)
+
+License Compatibility:
+All datasets are compatible with MIT:
+- MIT datasets can be used under MIT
+- Apache 2.0 datasets can be used under MIT
+- BigCode OpenRAIL-M is compatible with MIT
+
+Attribution:
+This work uses datasets from mhhmm, TypeScript Handbook (Microsoft), and BigCode.
+
+Base Model Citation:
+
+Qwen3:
+  Qwen Team. 2024.
+  "Qwen3 Technical Report"
+  https://huggingface.co/Qwen/Qwen3-0.6B
+  License: Apache 2.0

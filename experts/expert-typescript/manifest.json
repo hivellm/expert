@@ -1,0 +1,127 @@
+{
+  "name": "expert-typescript",
+  "version": "0.0.1",
+  "schema_version": "2.0",
+  "description": "TypeScript code generation and instruction expert trained on multiple high-quality sources including GPT-3.5-turbo generated examples, TypeScript Handbook documentation, and the-stack TypeScript subset.",
+  "author": "hivellm",
+  
+  "base_models": [
+    {
+      "name": "F:/Node/hivellm/expert/models/Qwen3-0.6B",
+      "sha256": "",
+      "quantization": "int4",
+      "rope_scaling": {
+        "type": "ntk-by-parts",
+        "factor": 8.0,
+        "max_position_embeddings": 32768,
+        "original_max_position_embeddings": 8192,
+        "fine_grained": true,
+        "_comment": "Qwen3-specific NTK-by-parts scaling (β=0.25). Matches Rust implementation."
+      },
+      "prompt_template": "chatml",
+      "adapters": [
+        {
+          "type": "dora",
+          "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "up_proj", "down_proj"],
+          "r": 12,
+          "alpha": 24,
+          "scaling": "dora",
+          "dropout": 0.05,
+          "path": "qwen3-06b/adapter/adapter_model.safetensors",
+          "size_bytes": 0,
+          "sha256": "",
+          "_comment": "DoRA r=8-16 for TypeScript (r=12 balanced). Handles long-range code constraints better than LoRA."
+        }
+      ]
+    }
+  ],
+  
+  "soft_prompts": [
+    {
+      "name": "typescript_style",
+      "path": "soft_prompts/ts_style_48.bin",
+      "tokens": 48,
+      "init_method": "text",
+      "init_text": "Generate TypeScript code following ESLint and Prettier conventions. Use proper types, interfaces, and modern ES6+ syntax. Write clean, maintainable code.",
+      "purpose": "Enforce TypeScript style conventions (naming, formatting, API usage)"
+    }
+  ],
+  
+  "constraints": {
+    "max_chain": 10,
+    "load_order": 5,
+    "incompatible_with": [],
+    "requires": []
+  },
+  
+  "capabilities": [
+    "language:typescript",
+    "language:javascript",
+    "code-generation",
+    "instruct-tuning",
+    "task:code-completion",
+    "task:code-explanation",
+    "task:refactoring"
+  ],
+
+  "perf": {
+    "latency_ms_overhead": 2.8,
+    "vram_mb_overhead": 18,
+    "supported_batch_sizes": [1, 2, 4, 8],
+    "_comment": "DoRA r=12 needs 18MB VRAM (same as SQL). Code generation is CPU-bound, latency mainly from model size."
+  },
+
+  "runtime": {
+    "candle_compatible": true,
+    "requires_kv_cache_persistence": true,
+    "attention_kernel": "flash-v2",
+    "_comment": "Metadata for Rust/Candle runtime. Qwen3 uses custom flash attention kernel (not standard SDPA)."
+  },
+  
+  "training": {
+    "dataset": {
+      "path": "datasets/train.jsonl",
+      "format": "jsonl",
+      "streaming": false,
+      "_comment": "TypeScript training dataset: 318k+ unique examples (base: 20k + Handbook: 155 + the-stack: 298k). Massively expanded from 20k to 318k+ examples (1,493% increase). Ready for training."
+    },
+    "config": {
+      "method": "sft",
+      "adapter_type": "dora",
+      "rank": 12,
+      "alpha": 24,
+      "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "up_proj", "down_proj"],
+      "epochs": 3,
+      "_comment": "DoRA r=12 for TypeScript. Includes MLP for better API/pattern learning.",
+      "learning_rate": 0.0003,
+      "batch_size": 16,
+      "gradient_accumulation_steps": 4,
+      "warmup_steps": 100,
+      "lr_scheduler": "cosine",
+      "max_seq_length": 2048,
+      "dataloader_num_workers": 8,
+      "dataloader_pin_memory": true,
+      "dataloader_prefetch_factor": 8,
+      "dataloader_persistent_workers": true,
+      "fp16": false,
+      "bf16": true,
+      "use_tf32": true,
+      "use_sdpa": true,
+      "optim": "adamw_torch_fused",
+      "group_by_length": true,
+      "logging_steps": 10,
+      "gradient_checkpointing": false,
+      "pretokenized_cache": "datasets_optimized/expert-typescript/tokenized"
+    },
+    "decoding": {
+      "validation": "tsc",
+      "validation_cmd": "tsc --noEmit",
+      "temperature": 0.4,
+      "top_p": 0.95,
+      "_comment": "TypeScript validation with tsc, moderate temperature for code variation"
+    }
+  },
+  
+  "license": "MIT"
+}
+

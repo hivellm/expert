@@ -1,0 +1,28 @@
+name: Rust lint
+
+on:
+  push:
+    branches: [ master, main, develop ]
+  pull_request:
+    branches: [ '**' ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Install minimal nightly with clippy and rustfmt
+      uses: dtolnay/rust-toolchain@nightly
+      with:
+        components: rustfmt, clippy
+    - uses: actions/checkout@v5
+    - uses: Swatinem/rust-cache@v2
+    
+    - name: Format check
+      run: cargo +nightly fmt --all -- --check
+    
+    - name: Clippy check
+      run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+

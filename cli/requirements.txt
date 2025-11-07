@@ -1,0 +1,57 @@
+# Python dependencies for HiveLLM Expert Training System
+# Tested on: Windows 11, Python 3.12.9, CUDA 12.1+
+# GPU: NVIDIA RTX 4090 (24GB VRAM)
+# Version: 0.2.0
+
+# Core ML Frameworks
+torch>=2.5.1              # PyTorch with CUDA support (BF16, TF32, SDPA)
+transformers>=4.57.0      # HuggingFace Transformers (Qwen3 support)
+datasets>=4.3.0           # HuggingFace Datasets (Arrow format, streaming)
+accelerate>=1.11.0        # Distributed training utilities
+
+# PEFT (Parameter-Efficient Fine-Tuning)
+# Supports: LoRA, DoRA, IA³, QLoRA, Soft Prompts
+peft>=0.17.0              # LoRA, DoRA (use_dora=True), IA³ (IA3Config), PromptTuning
+
+# Training (TRL for SFTTrainer with sequence packing)
+trl>=0.7.0                # SFTTrainer with packing (+30-40% tokens/s)
+
+# Note: Unsloth provides 2x speedup but has complex Windows dependencies
+# We apply Unsloth's best practices (params) without the library itself
+
+# Quantization (QLoRA with NF4)
+bitsandbytes>=0.48.0      # 4-bit/8-bit quantization (NF4, double-quant)
+
+# Utilities
+numpy>=2.3.0              # Array operations
+tqdm>=4.67.0              # Progress bars
+
+# Grammar & Validation
+jsonschema>=4.25.0        # JSON Schema validation for datasets
+
+# Optional: Advanced Features
+# llama-cpp-python>=0.3.0  # GBNF grammar-constrained decoding (future)
+# flash-attn>=2.7.0        # Flash Attention 2 (SDPA fallback available)
+
+# Auto-installed dependencies (informational)
+# - huggingface-hub>=0.36.0    # Model hub access
+# - safetensors>=0.6.0         # Fast model serialization
+# - tokenizers>=0.22.0         # Fast tokenization
+# - psutil>=7.1.0              # System monitoring
+# - pyarrow>=22.0.0            # Arrow format support
+
+# Training Optimizations Enabled:
+# ✓ QLoRA (NF4 + double-quant)
+# ✓ BF16 mixed precision
+# ✓ TF32 tensor cores
+# ✓ SDPA Flash Attention
+# ✓ Fused AdamW optimizer
+# ✓ Gradient checkpointing
+# ✓ Pre-tokenized dataset caching
+
+# Adapter Types Supported:
+# ✓ LoRA (Low-Rank Adaptation)
+# ✓ DoRA (Weight-Decomposed LoRA)
+# ✓ IA³ (Infused Adapter by Inhibiting and Amplifying)
+# ✓ Soft Prompts (Trainable prompt embeddings)
+

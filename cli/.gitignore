@@ -1,0 +1,11 @@
+/target/
+/Cargo.lock
+__pycache__/
+*.pyc
+.env
+*.log
+venv/
+.venv/
+venv_windows/
+download_model.py
+unsloth_compiled_cache/

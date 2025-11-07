@@ -1,0 +1,329 @@
+// Tests for lora.rs - adapter loading and application
+
+use expert_cli::inference::lora::{LoraAdapter, AdapterType};
+use candle_core::{Device, Tensor, DType};
+use std::path::Path;
+use std::collections::HashMap;
+use tempfile::TempDir;
+
+#[test]
+fn test_adapter_type_enum() {
+    // Test that AdapterType variants exist
+    let lora = AdapterType::LoRA;
+    let dora = AdapterType::DoRA;
+    let ia3 = AdapterType::IA3;
+    
+    // Just verify they compile and can be compared
+    match lora {
+        AdapterType::LoRA => assert!(true),
+        _ => assert!(false),
+    }
+    
+    match dora {
+        AdapterType::DoRA => assert!(true),
+        _ => assert!(false),
+    }
+    
+    match ia3 {
+        AdapterType::IA3 => assert!(true),
+        _ => assert!(false),
+    }
+}
+
+#[test]
+fn test_lora_adapter_creation() {
+    // Create a mock adapter with dummy weights
+    let mut weights = HashMap::new();
+    let device = Device::Cpu;
+    
+    // Create dummy LoRA weights
+    let lora_a = Tensor::new(&[[1.0, 2.0], [3.0, 4.0]], &device).unwrap();
+    let lora_b = Tensor::new(&[[5.0, 6.0]], &device).unwrap();
+    
+    weights.insert("layer.lora_A.weight".to_string(), lora_a);
+    weights.insert("layer.lora_B.weight".to_string(), lora_b);
+    
+    let adapter = LoraAdapter {
+        adapter_type: AdapterType::LoRA,
+        rank: Some(2),
+        alpha: Some(16),
+        target_modules: vec!["layer".to_string()],
+        weights,
+    };
+    
+    assert_eq!(adapter.rank, Some(2));
+    assert_eq!(adapter.alpha, Some(16));
+    assert_eq!(adapter.target_modules.len(), 1);
+    assert_eq!(adapter.weights.len(), 2);
+}
+
+#[test]
+fn test_size_bytes() {
+    let mut weights = HashMap::new();
+    let device = Device::Cpu;
+    
+    // Create tensors with known sizes
+    let t1 = Tensor::new(&[[1.0f32, 2.0], [3.0, 4.0]], &device).unwrap();
+    let t2 = Tensor::new(&[[5.0f32, 6.0, 7.0]], &device).unwrap();
+    
+    weights.insert("t1".to_string(), t1);
+    weights.insert("t2".to_string(), t2);
+    
+    let adapter = LoraAdapter {
+        adapter_type: AdapterType::LoRA,
+        rank: None,
+        alpha: None,
+        target_modules: vec![],
+        weights,
+    };
+    
+    // t1: 4 elements, t2: 3 elements = 7 elements total
+    // Each f32 is 4 bytes = 28 bytes
+    let size = adapter.size_bytes();
+    assert_eq!(size, 7 * std::mem::size_of::<f32>());
+}
+
+#[test]
+fn test_num_parameters() {
+    let mut weights = HashMap::new();
+    let device = Device::Cpu;
+    
+    let t1 = Tensor::new(&[[1.0, 2.0], [3.0, 4.0]], &device).unwrap();
+    let t2 = Tensor::new(&[[5.0, 6.0, 7.0]], &device).unwrap();
+    
+    weights.insert("t1".to_string(), t1);
+    weights.insert("t2".to_string(), t2);
+    
+    let adapter = LoraAdapter {
+        adapter_type: AdapterType::LoRA,
+        rank: None,
+        alpha: None,
+        target_modules: vec![],
+        weights,
+    };
+    
+    // 4 + 3 = 7 parameters
+    assert_eq!(adapter.num_parameters(), 7);
+}
+
+#[test]
+fn test_apply_lora_no_weights() {
+    // Test applying LoRA when layer has no LoRA weights
+    let adapter = LoraAdapter {
+        adapter_type: AdapterType::LoRA,
+        rank: Some(2),
+        alpha: Some(16),
+        target_modules: vec![],
+        weights: HashMap::new(),
+    };
+    
+    let device = Device::Cpu;
+    let base_weight = Tensor::new(&[[1.0, 2.0], [3.0, 4.0]], &device).unwrap();
+    
+    // Should return original weight unchanged
+    let result = adapter.apply_lora("layer", &base_weight).unwrap();
+    let base_vec = base_weight.to_vec2::<f32>().unwrap();
+    let result_vec = result.to_vec2::<f32>().unwrap();
+    
+    assert_eq!(base_vec, result_vec);
+}
+
+#[test]
+fn test_apply_lora_with_weights() {
+    // Test applying LoRA with actual weights
+    let mut weights = HashMap::new();
+    let device = Device::Cpu;
+    
+    // LoRA matrices: B (1x2) and A (2x3)
+    // Final weight should be: W + (alpha/r) * BA
+    let lora_a = Tensor::new(&[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device).unwrap();
+    let lora_b = Tensor::new(&[[7.0, 8.0]], &device).unwrap();
+    
+    weights.insert("layer.lora_A.weight".to_string(), lora_a);
+    weights.insert("layer.lora_B.weight".to_string(), lora_b);
+    
+    let adapter = LoraAdapter {
+        adapter_type: AdapterType::LoRA,
+        rank: Some(2),
+        alpha: Some(16), // scale = 16/2 = 8.0
+        target_modules: vec!["layer".to_string()],
+        weights,
+    };
+    
+    // Base weight: 1x3 (to match BA output shape)
+    let base_weight = Tensor::new(&[[1.0, 2.0, 3.0]], &device).unwrap();
+    
+    // Apply LoRA
+    let result = adapter.apply_lora("layer", &base_weight).unwrap();
+    
+    // Verify result shape matches base
+    let base_shape = base_weight.shape();
+    let result_shape = result.shape();
+    assert_eq!(base_shape, result_shape);
+    
+    // Verify result is not identical to base (LoRA was applied)
+    let base_vec = base_weight.to_vec2::<f32>().unwrap();
+    let result_vec = result.to_vec2::<f32>().unwrap();
+    assert_ne!(base_vec, result_vec);
+}
+
+#[test]
+fn test_apply_lora_scaling() {
+    // Test that alpha/r scaling is applied correctly
+    let mut weights = HashMap::new();
+    let device = Device::Cpu;
+    
+    let lora_a = Tensor::new(&[[1.0, 1.0], [1.0, 1.0]], &device).unwrap();
+    let lora_b = Tensor::new(&[[1.0, 1.0]], &device).unwrap();
+    
+    weights.insert("layer.lora_A.weight".to_string(), lora_a);
+    weights.insert("layer.lora_B.weight".to_string(), lora_b);
+    
+    // alpha=16, rank=2 => scale = 8.0
+    let adapter = LoraAdapter {
+        adapter_type: AdapterType::LoRA,
+        rank: Some(2),
+        alpha: Some(16),
+        target_modules: vec![],
+        weights,
+    };
+    
+    let base_weight = Tensor::new(&[[0.0, 0.0]], &device).unwrap();
+    let result = adapter.apply_lora("layer", &base_weight).unwrap();
+    
+    // BA = [[1,1]] * [[1,1],[1,1]] = [[2,2]]
+    // Scaled: [[2,2]] * 8.0 = [[16,16]]
+    // Result: [[0,0]] + [[16,16]] = [[16,16]]
+    let result_vec = result.to_vec2::<f32>().unwrap();
+    assert!((result_vec[0][0] - 16.0).abs() < 0.1);
+}
+
+#[test]
+fn test_apply_lora_no_alpha_rank() {
+    // Test with no alpha/rank (should use scale=1.0)
+    let mut weights = HashMap::new();
+    let device = Device::Cpu;
+    
+    let lora_a = Tensor::new(&[[1.0, 1.0], [1.0, 1.0]], &device).unwrap();
+    let lora_b = Tensor::new(&[[1.0, 1.0]], &device).unwrap();
+    
+    weights.insert("layer.lora_A.weight".to_string(), lora_a);
+    weights.insert("layer.lora_B.weight".to_string(), lora_b);
+    
+    let adapter = LoraAdapter {
+        adapter_type: AdapterType::LoRA,
+        rank: None,
+        alpha: None,
+        target_modules: vec![],
+        weights,
+    };
+    
+    let base_weight = Tensor::new(&[[0.0, 0.0]], &device).unwrap();
+    let result = adapter.apply_lora("layer", &base_weight).unwrap();
+    
+    // With scale=1.0, BA should be [[2,2]]
+    // Result: [[0,0]] + [[2,2]] = [[2,2]]
+    let result_vec = result.to_vec2::<f32>().unwrap();
+    assert!((result_vec[0][0] - 2.0).abs() < 0.1);
+}
+
+#[test]
+fn test_empty_weights() {
+    let adapter = LoraAdapter {
+        adapter_type: AdapterType::LoRA,
+        rank: None,
+        alpha: None,
+        target_modules: vec![],
+        weights: HashMap::new(),
+    };
+    
+    assert_eq!(adapter.size_bytes(), 0);
+    assert_eq!(adapter.num_parameters(), 0);
+}
+
+#[test]
+fn test_multiple_target_modules() {
+    let adapter = LoraAdapter {
+        adapter_type: AdapterType::LoRA,
+        rank: Some(16),
+        alpha: Some(32),
+        target_modules: vec![
+            "q_proj".to_string(),
+            "v_proj".to_string(),
+            "k_proj".to_string(),
+        ],
+        weights: HashMap::new(),
+    };
+    
+    assert_eq!(adapter.target_modules.len(), 3);
+    assert!(adapter.target_modules.contains(&"q_proj".to_string()));
+    assert!(adapter.target_modules.contains(&"v_proj".to_string()));
+    assert!(adapter.target_modules.contains(&"k_proj".to_string()));
+}
+
+#[test]
+fn test_dora_adapter_type() {
+    let adapter = LoraAdapter {
+        adapter_type: AdapterType::DoRA,
+        rank: Some(16),
+        alpha: Some(32),
+        target_modules: vec![],
+        weights: HashMap::new(),
+    };
+    
+    match adapter.adapter_type {
+        AdapterType::DoRA => assert!(true),
+        _ => assert!(false),
+    }
+}
+
+#[test]
+fn test_ia3_adapter_type() {
+    let adapter = LoraAdapter {
+        adapter_type: AdapterType::IA3,
+        rank: None, // IA³ doesn't use rank
+        alpha: None, // IA³ doesn't use alpha
+        target_modules: vec!["layer".to_string()],
+        weights: HashMap::new(),
+    };
+    
+    match adapter.adapter_type {
+        AdapterType::IA3 => assert!(true),
+        _ => assert!(false),
+    }
+    
+    // IA³ should work without rank/alpha
+    assert_eq!(adapter.rank, None);
+    assert_eq!(adapter.alpha, None);
+}
+
+#[test]
+fn test_large_adapter() {
+    // Test with larger adapter (more realistic)
+    let mut weights = HashMap::new();
+    let device = Device::Cpu;
+    
+    // Simulate larger LoRA matrices
+    let large_size = 100;
+    let lora_a_data: Vec<f32> = (0..large_size * 64).map(|i| i as f32).collect();
+    let lora_b_data: Vec<f32> = (0..large_size).map(|i| i as f32).collect();
+    
+    let lora_a = Tensor::from_vec(lora_a_data, (64, large_size), &device).unwrap();
+    let lora_b = Tensor::from_vec(lora_b_data, (1, large_size), &device).unwrap();
+    
+    weights.insert("layer.lora_A.weight".to_string(), lora_a);
+    weights.insert("layer.lora_B.weight".to_string(), lora_b);
+    
+    let adapter = LoraAdapter {
+        adapter_type: AdapterType::LoRA,
+        rank: Some(64),
+        alpha: Some(128),
+        target_modules: vec![],
+        weights,
+    };
+    
+    // Should handle large adapters
+    assert_eq!(adapter.num_parameters(), large_size * 64 + large_size);
+    assert!(adapter.size_bytes() > 0);
+}
+

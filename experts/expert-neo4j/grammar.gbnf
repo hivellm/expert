@@ -1,0 +1,112 @@
+# Cypher Query Grammar (GBNF format for llama.cpp)
+# Simplified Cypher grammar for Neo4j queries
+
+root ::= query
+
+query ::= read-query | write-query
+
+# Read queries
+read-query ::= match-clause where-clause? return-clause order-clause? limit-clause?
+
+match-clause ::= "MATCH" ws pattern (ws "," ws pattern)*
+
+pattern ::= node-pattern (ws relationship-pattern ws node-pattern)*
+
+node-pattern ::= "(" ws variable? ws label-expr? ws properties? ws ")"
+
+relationship-pattern ::= 
+    "-[" ws variable? ws rel-type-expr? ws properties? ws "]->" |
+    "<-[" ws variable? ws rel-type-expr? ws properties? ws "]-" |
+    "-[" ws variable? ws rel-type-expr? ws properties? ws "]-"
+
+where-clause ::= ws "WHERE" ws expression
+
+return-clause ::= ws "RETURN" ws return-items
+
+return-items ::= return-item (ws "," ws return-item)*
+
+return-item ::= expression (ws "AS" ws variable)?
+
+order-clause ::= ws "ORDER" ws "BY" ws order-item (ws "," ws order-item)*
+
+order-item ::= expression (ws ("ASC" | "DESC"))?
+
+limit-clause ::= ws "LIMIT" ws number
+
+# Write queries
+write-query ::= create-clause | merge-clause | set-clause | delete-clause
+
+create-clause ::= "CREATE" ws pattern
+
+merge-clause ::= "MERGE" ws pattern
+
+set-clause ::= "SET" ws property-assignment (ws "," ws property-assignment)*
+
+delete-clause ::= "DELETE" ws variable (ws "," ws variable)*
+
+# Expressions
+expression ::= 
+    property-access |
+    function-call |
+    comparison |
+    logical-expr |
+    literal |
+    variable
+
+property-access ::= variable "." property-name
+
+function-call ::= function-name "(" ws (expression (ws "," ws expression)*)? ws ")"
+
+comparison ::= expression ws comparison-op ws expression
+
+comparison-op ::= "=" | "<>" | "!=" | "<" | ">" | "<=" | ">=" | "=~"
+
+logical-expr ::= expression ws logical-op ws expression
+
+logical-op ::= "AND" | "OR" | "NOT"
+
+# Common functions
+function-name ::= 
+    "count" | "COUNT" |
+    "sum" | "SUM" |
+    "avg" | "AVG" |
+    "max" | "MAX" |
+    "min" | "MIN" |
+    "collect" | "COLLECT" |
+    "size" | "SIZE" |
+    "length" | "LENGTH" |
+    "toLower" | "toUpper"
+
+# Basic elements
+variable ::= [a-zA-Z_][a-zA-Z0-9_]*
+
+label-expr ::= ":" label-name
+
+rel-type-expr ::= ":" rel-type-name
+
+label-name ::= [A-Z][a-zA-Z0-9_]*
+
+rel-type-name ::= [A-Z_][A-Z0-9_]*
+
+property-name ::= [a-z][a-zA-Z0-9_]*
+
+properties ::= "{" ws property-pair (ws "," ws property-pair)* ws "}"
+
+property-pair ::= property-name ws ":" ws literal
+
+property-assignment ::= property-access ws "=" ws expression
+
+# Literals
+literal ::= string | number | boolean | null
+
+string ::= "\"" [^"]* "\""
+
+number ::= [0-9]+ ("." [0-9]+)?
+
+boolean ::= "true" | "false" | "TRUE" | "FALSE"
+
+null ::= "null" | "NULL"
+
+# Whitespace
+ws ::= [ \t\n]*
+

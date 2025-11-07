@@ -1,0 +1,1071 @@
+Using device: cuda
+================================================================================
+QUALITATIVE ANALYSIS: Base vs All Checkpoints (250, 500, 592, final)
+================================================================================
+Date: 2025-11-06 10:24:51
+Device: cuda
+Checkpoints: 4
+Total Queries: 20
+Expected Runtime: ~5 minutes
+
+--------------------------------------------------------------------------------
+[1/3] Loading Base Model...
+Loading base model from F:/Node/hivellm/expert/models/Qwen3-0.6B...
+[OK] Base Model loaded
+
+[2/5] Loading checkpoint-250...
+Loading base model from F:/Node/hivellm/expert/models/Qwen3-0.6B...
+Loading adapter from ../weights/qwen3-06b/checkpoint-250...
+[OK] Expert (checkpoint-250) loaded
+
+[3/5] Loading checkpoint-500...
+Loading base model from F:/Node/hivellm/expert/models/Qwen3-0.6B...
+Loading adapter from ../weights/qwen3-06b/checkpoint-500...
+[OK] Expert (checkpoint-500) loaded
+
+[4/5] Loading checkpoint-592...
+Loading base model from F:/Node/hivellm/expert/models/Qwen3-0.6B...
+Loading adapter from ../weights/qwen3-06b/checkpoint-592...
+[OK] Expert (checkpoint-592) loaded
+
+[5/5] Loading final...
+Loading base model from F:/Node/hivellm/expert/models/Qwen3-0.6B...
+Loading adapter from ../weights/qwen3-06b/final...
+[OK] Expert (final) loaded
+
+================================================================================
+Q1: Basic MATCH (1/20)
+================================================================================
+Question: Find all people older than 30
+
+[BASE MODEL]
+----------------------------------------
+<think>
+Okay, let's see. The user wants to find all people older than 30. The schema provided has a Node property called 'Person' with 'name' and 'age'. The relationships are none, so there's no conne...
+Score: 7.0/10 | Coverage: 50%
+
+[CHECKPOINT-250]
+----------------------------------------
+<think>
+MATCH (p:Person)-[:LIVES_IN]->(l:Location)-[:BORN_IN]->(b:Person)
+WHERE p.age > 30
+RETURN p.name AS Person
+</think>
+
+MATCH (p:Person)-[:LIVES_IN]->(l:Location)-[:BORN_IN]->(b:Person)
+WHERE p.a...
+Score: 10.0/10 | Coverage: 100% | [+] +3.0 vs base
+
+[CHECKPOINT-500]
+----------------------------------------
+<think>
+MATCH (p:Person)-[:BECAMES_IN]-(r:Role)-[:WORKS_ON]-(s:Skill)
+WHERE p.age > 30
+RETURN p.name AS name
+</think>
+
+MATCH (p:Person)-[:BECAMES_IN]-(r:Role)-[:WORKS_ON]-(s:Skill)
+WHERE p.age > 30
+RE...
+Score: 10.0/10 | Coverage: 100% | [+] +3.0 vs base
+
+[CHECKPOINT-592]
+----------------------------------------
+<think>
+MATCH (p:Person)-[:LEADS_TO)-[r:REACHES]->(person2:Person)\nWHERE p.age > 30\nRETURN p.name AS name
+</think>
+
+MATCH (p:Person)-[:LEADS_TO)-[r:REACHES]->(person2:Person)\nWHERE p.age > 30\nRETU...
+Score: 8.0/10 | Coverage: 100% | [+] +1.0 vs base
+
+[FINAL]
+----------------------------------------
+<think>
+MATCH (p:Person)-[:BELONGS_TO]->(person:Person)\nWHERE p.age > 30\nRETURN p.name AS name
+</think>
+
+MATCH (p:Person)-[:BELONGS_TO]->(person:Person)\nWHERE p.age > 30\nRETURN p.name AS name
+Score: 10.0/10 | Coverage: 100% | [+] +3.0 vs base
+
+
+================================================================================
+Q2: Simple Property Filter (2/20)
+================================================================================
+Question: Find all products that are in stock
+
+[BASE MODEL]
+----------------------------------------
+<think>
+Okay, the user wants me to find all products that are in stock. Let me look at the schema provided. The Node properties include Product with name, price, and inStock. Relationships are none, s...
+Score: 7.0/10 | Coverage: 100%
+
+[CHECKPOINT-250]
+----------------------------------------
+<think>
+MATCH (p:Product)-[r:IN_STOCK]->(p:Product)
+RETURN p.name AS productName, p.price AS price, p.inStock AS inStock
+</think>
+
+MATCH (p:Product)-[r:IN_STOCK]->(p:Product)
+RETURN p.name AS productN...
+Score: 9.3/10 | Coverage: 67% | [+] +2.3 vs base
+
+[CHECKPOINT-500]
+----------------------------------------
+<think>
+MATCH (p:Product)-[r:IN_STOCK]->(p) RETURN p.name AS ProductName, p.price AS Price, p.inStock AS Stock
+</think>
+
+MATCH (p:Product)-[r:IN_STOCK]->(p) RETURN p.name AS ProductName, p.price AS Pr...
+Score: 9.3/10 | Coverage: 67% | [+] +2.3 vs base
+
+[CHECKPOINT-592]
+----------------------------------------
+<think>
+MATCH (p:Product)\nWHERE p.inStock = true\nRETURN p.name AS ProductName, p.price AS Price, p.inStock AS StockAvailable
+</think>
+
+MATCH (p:Product)\nWHERE p.inStock = true\nRETURN p.name AS Pro...
+Score: 10.0/10 | Coverage: 100% | [+] +3.0 vs base
+
+[FINAL]
+----------------------------------------
+<think>
+MATCH (p:Product)-[:IS_IN_STOCK]->(p2:Product)\nWHERE p.inStock IS TRUE\nRETURN p.name AS name, p.price AS price, p.inStock AS inStock
+</think>
+
+MATCH (p:Product)-[:IS_IN_STOCK]->(p2:Product)\...
+Score: 10.0/10 | Coverage: 100% | [+] +3.0 vs base
+
+
+================================================================================
+Q3: Multiple Properties (3/20)
+================================================================================
+Question: Find all employees in IT department with salary over 80000
+
+[BASE MODEL]
+----------------------------------------
+<think>
+Okay, let's see. The user wants to find all employees in the IT department with a salary over 80000. Hmm, first, I need to figure out how to represent this in a Cypher graph. The schema provid...
+Score: 6.8/10 | Coverage: 88%
+
+[CHECKPOINT-250]
+----------------------------------------
+<think>
+MATCH (e:Employee {department: 'IT'})-[:INDEPENDENT_employment]->(emp:Employee {salary: e.salary > 80000})\nRETURN emp.name AS name
+</think>
+
+MATCH (e:Employee {department: 'IT'})-[:INDEPENDEN...
+Score: 9.8/10 | Coverage: 88% | [+] +3.0 vs base
+
+[CHECKPOINT-500]
+----------------------------------------
+<think>
+MATCH (e:Employee {department: 'IT'})-[:INDEPENDENT_DEPARTMENT]->(d:Department)-[:DEPENDS_ON]->(emp:Employee)\nWHERE emp.salary > 80000\nRETURN emp.name AS employee_name
+</think>
+
+MATCH (e:Emp...
+Score: 10.0/10 | Coverage: 100% | [+] +3.2 vs base
+
+[CHECKPOINT-592]
+----------------------------------------
+<think>
+MATCH (e:Employee{department: 'IT'})-[:SALARY_IN]->(s:Employee{salary: 80000})\nRETURN e.name AS name
+</think>
+
+MATCH (e:Employee{department: 'IT'})-[:SALARY_IN]->(s:Employee{salary: 80000})\n...
+Score: 9.8/10 | Coverage: 88% | [+] +3.0 vs base
+
+[FINAL]
+----------------------------------------
+<think>
+MATCH (e:Employee {department: 'IT'})-[:SALARY_Over_80000]->(e:Employee) RETURN e.name AS employee
+</think>
+
+MATCH (e:Employee {department: 'IT'})-[:SALARY_Over_80000]->(e:Employee) RETURN e.n...
+Score: 9.8/10 | Coverage: 88% | [+] +3.0 vs base
+
+
+================================================================================
+Q4: String Pattern Matching (4/20)
+================================================================================
+Question: Find all companies whose name contains 'Tech'
+
+[BASE MODEL]
+----------------------------------------
+<think>
+Okay, the user wants to find all companies whose name contains 'Tech'. Let me think about how to approach this.
+
+First, I need to check the schema provided. The schema has a Node property call...
+Score: 7.4/10 | Coverage: 71%
+
+[CHECKPOINT-250]
+----------------------------------------
+<think>
+MATCH (c:Company {name: 'Tech'})\nRETURN c
+</think>
+
+MATCH (c:Company {name: 'Tech'})\nRETURN c\nLIMIT 10
+Score: 9.4/10 | Coverage: 71% | [+] +2.0 vs base
+
+[CHECKPOINT-500]
+----------------------------------------
+<think>
+MATCH (c:Company {name: 'Tech'})-[:CONTAINS_IN_THE_NAME]->(c:Company)
+RETURN c.name AS name, c.industry AS industry
+</think>
+
+MATCH (c:Company {name: 'Tech'})-[:CONTAINS_IN_THE_NAME]->(c:Compa...
+Score: 9.7/10 | Coverage: 86% | [+] +2.3 vs base
+
+[CHECKPOINT-592]
+----------------------------------------
+<think>
+MATCH (c:Company)-[:CONTAINS_IN_NAME]->(c:Company)
+WHERE c.name CONTAINS 'Tech'
+RETURN c.name AS name
+</think>
+
+MATCH (c:Company)-[:CONTAINS_IN_NAME]->(c:Company)\nWHERE c.name CONTAINS 'Tech'...
+Score: 10.0/10 | Coverage: 100% | [+] +2.6 vs base
+
+[FINAL]
+----------------------------------------
+<think>
+MATCH (c:Company {name: 'Tech'})-[:INDUSTRY]->(i:Industry)-[:INDUSTRY]->(c2:Company {name: 'Tech'})-[:INDUSTRY]->(i2:Industry)-[:INDUSTRY]->(c3:Company {name: 'Tech'})-[:INDUSTRY]->(i3:Industr...
+Score: 6.4/10 | Coverage: 71% | [-] -1.0 vs base
+
+
+================================================================================
+Q5: Simple Relationship (5/20)
+================================================================================
+Question: Find all actors and the movies they acted in
+
+[BASE MODEL]
+----------------------------------------
+<think>
+Okay, the user wants to find all actors and the movies they acted in. Let me think about how to approach this.
+
+First, I need to look at the schema provided. The schema has a Node with Person ...
+Score: 5.2/10 | Coverage: 60%
+
+[CHECKPOINT-250]
+----------------------------------------
+<think>
+MATCH (p:Person)-[:ACTED_IN]->(m:Movie)\nRETURN p.name AS actor, m.title AS movie
+</think>
+
+MATCH (p:Person)-[:ACTED_IN]->(m:Movie)\nRETURN p.name AS actor, m.title AS movie ORDER BY movie.tit...
+Score: 10.0/10 | Coverage: 100% | [+] +4.8 vs base
+
+[CHECKPOINT-500]
+----------------------------------------
+<think>
+MATCH (p:Person)-[:ACTED_IN]->(m:Movie)\nRETURN p.name AS actor, m.title AS movie
+</think>
+
+MATCH (p:Person)-[:ACTED_IN]->(m:Movie)\nRETURN p.name AS actor, m.title AS movie
+Score: 10.0/10 | Coverage: 100% | [+] +4.8 vs base
+
+[CHECKPOINT-592]
+----------------------------------------
+<think>
+MATCH (p:Person)-[:ACTED_IN]->(m:Movie)\nRETURN p.name AS actor, m.title AS movie
+</think>
+
+MATCH (p:Person)-[:ACTED_IN]->(m:Movie)\nRETURN p.name AS actor, m.title AS movie ORDER BY movie.tit...
+Score: 10.0/10 | Coverage: 100% | [+] +4.8 vs base
+
+[FINAL]
+----------------------------------------
+<think>
+MATCH (p:Person)-[:ACTED_IN]->(m:Movie)\nRETURN p.name AS Actor, m.title AS Movie
+</think>
+
+MATCH (p:Person)-[:ACTED_IN]->(m:Movie)\nRETURN p.name AS Actor, m.title AS Movie
+Score: 10.0/10 | Coverage: 100% | [+] +4.8 vs base
+
+
+================================================================================
+Q6: Bidirectional Relationship (6/20)
+================================================================================
+Question: Find all users who follow each other
+
+[BASE MODEL]
+----------------------------------------
+<think>
+Okay, so the user wants to find all users who follow each other. Let me think about how to approach this. The schema provided has a Node property called User with a username, and there's a rel...
+Score: 8.0/10 | Coverage: 50%
+
+[CHECKPOINT-250]
+----------------------------------------
+<think>
+MATCH (:User)-[:FOLLOWS]->(:User)\nRETURN username, followed_by
+</think>
+
+MATCH (:User)-[:FOLLOWS]->(:User)\nRETURN username AS user, followed_by AS followed_by
+```
+Score: 10.0/10 | Coverage: 100% | [+] +2.0 vs base
+
+[CHECKPOINT-500]
+----------------------------------------
+<think>
+MATCH (u1:User)-[:FOLLOWS]->(u2:User)\nRETURN u1.username AS User1, u2.username AS User2
+</think>
+
+MATCH (u1:User)-[:FOLLOWS]->(u2:User)\nRETURN u1.username AS User1, u2.username AS User2\nLIM...
+Score: 10.0/10 | Coverage: 100% | [+] +2.0 vs base
+
+[CHECKPOINT-592]
+----------------------------------------
+<think>
+MATCH (u1:User)-[:FOLLOWS]->(u2:User)\nRETURN u1.username AS followee, u2.username AS follower
+</think>
+
+MATCH (u1:User)-[:FOLLOWS]->(u2:User)\nRETURN u1.username AS followee, u2.username AS f...
+Score: 10.0/10 | Coverage: 100% | [+] +2.0 vs base
+
+[FINAL]
+----------------------------------------
+<think>
+MATCH (u1:User)-[:FOLLOWS]->(u2:User)\nRETURN u1.username AS user1, u2.username AS user2
+</think>
+
+MATCH (u1:User)-[:FOLLOWS]->(u2:User)\nRETURN u1.username AS user1, u2.username AS user2\nLIM...
+Score: 10.0/10 | Coverage: 100% | [+] +2.0 vs base
+
+
+================================================================================
+Q7: Filter on Relationship (7/20)
+================================================================================
+Question: Find all movies directed by people born in the 1960s
+
+[BASE MODEL]
+----------------------------------------
+<think>
+Okay, let's see. The user wants to find all movies directed by people born in the 1960s. So first, I need to look at the schema provided. The schema has two nodes: Movie and Person, with relat...
+Score: 6.3/10 | Coverage: 67%
+
+[CHECKPOINT-250]
+----------------------------------------
+<think>
+Okay, let's tackle this problem. The user wants to find all movies directed by people born in the 1960s. So, first, I need to figure out who the people born in the 1960s are. Then, find the mo...
+Score: 7.0/10 | Coverage: 50% | [+] +0.7 vs base
+
+[CHECKPOINT-500]
+----------------------------------------
+<think>
+Find all movies directed by people born in the 1960s.
+</think>
+
+```cypher
+MATCH (:Person)-[:DIRECTED]->(:Movie)\nWHERE (:Person).born >= 1960 AND (:Person).born <= 1999\nRETURN DISTINCT (:Movi...
+Score: 10.0/10 | Coverage: 100% | [+] +3.7 vs base
+
+[CHECKPOINT-592]
+----------------------------------------
+<think>
+Okay, let's tackle this problem. The user wants movies directed by people born in the 1960s. So, I need to find the movies where the director has a birth year between 1960 and 1969 (since 1960...
+Score: 8.7/10 | Coverage: 83% | [+] +2.3 vs base
+
+[FINAL]
+----------------------------------------
+<think>
+Okay, let's see. The user wants to find all movies directed by people born in the 1960s. So first, I need to find the people born in the 1960s and then look up the movies they directed.
+
+First...
+Score: 7.7/10 | Coverage: 83% | [+] +1.3 vs base
+
+
+================================================================================
+Q8: Relationship with Properties (8/20)
+================================================================================
+Question: Find all people who started working at companies after 2020
+
+[BASE MODEL]
+----------------------------------------
+<think>
+Okay, let's see. The user wants to find all people who started working at companies after 2020. Hmm, first, I need to figure out how to represent this in a Cypher query. The relationships are ...
+Score: 8.7/10 | Coverage: 83%
+
+[CHECKPOINT-250]
+----------------------------------------
+<think>
+Okay, let's see. The user wants to find all people who worked at companies after 2020. So, I need to look at the relationships where a person works at a company, and the company's date of work...
+Score: 5.3/10 | Coverage: 67% | [-] -3.3 vs base
+
+[CHECKPOINT-500]
+----------------------------------------
+<think>
+MATCH (p:Person)-[:WORKS_AT]->(c:Company)-[:WORKS_AT]->(:Company)-[:WORKS_AT]->(:Company)-[:WORKS_AT]->(:Company)-[:WORKS_AT]->(:Company)-[:WORKS_AT]->(:Company)-[:WORKS_AT]->(:Company)-[:WORK...
+Score: 5.7/10 | Coverage: 33% | [-] -3.0 vs base
+
+[CHECKPOINT-592]
+----------------------------------------
+<think>
+MATCH (p:Person)-[:WORKS_AT {role: 'Engineer'}]->(c:Company)-[:WORKS_AT {role: 'Engineer'}]->(p)
+WHERE p.name IS NOT NULL AND c.name IS NOT NULL AND p.Signed_Date > '2020-01-01' AND p.Signed_D...
+Score: 8.7/10 | Coverage: 83% | [=] +0.0 vs base
+
+[FINAL]
+----------------------------------------
+<think>
+Okay, let's see. The user wants to find all people who worked at companies after 2020. So, first, I need to find the relationships where a person works at a company, and the company was create...
+Score: 7.3/10 | Coverage: 67% | [-] -1.3 vs base
+
+
+================================================================================
+Q9: COUNT Aggregation (9/20)
+================================================================================
+Question: Count how many products each user purchased
+
+[BASE MODEL]
+----------------------------------------
+<think>
+Okay, let's see. The user wants to count how many products each user purchased. Hmm, I need to figure out how to approach this.
+
+First, I remember that in a graph database like Neo4j, we can m...
+Score: 5.0/10 | Coverage: 50%
+
+[CHECKPOINT-250]
+----------------------------------------
+<think>
+Okay, let's see. The user wants me to count how many products each user purchased. I need to find the relationships where a user purchases a product and count the products for each user. 
+
+Fir...
+Score: 8.0/10 | Coverage: 50% | [+] +3.0 vs base
+
+[CHECKPOINT-500]
+----------------------------------------
+<think>
+SELECT User.name, COUNT(*) AS num_purchased_products
+FROM (:User)-[:PURCHASED]->(:Product) AS purchase
+GROUP BY User.name
+ORDER BY num_purchased_products DESC
+###
+The count of products purchas...
+Score: 5.0/10 | Coverage: 50% | [=] +0.0 vs base
+
+[CHECKPOINT-592]
+----------------------------------------
+<think>
+MATCH (u:User)-[:PURCHASED]->(p:Product)\nRETURN u.name AS user, p.name AS product
+</think>
+
+MATCH (u:User)-[:PURCHASED]->(p:Product)\nRETURN u.name AS user, p.name AS product\nWITH u, p ORDER...
+Score: 9.5/10 | Coverage: 75% | [+] +4.5 vs base
+
+[FINAL]
+----------------------------------------
+<think>
+MATCH (u:User)-[:PURCHASED]->(p:Product)\nRETURN u.name AS name, COUNT(p) AS purchased_products
+</think>
+
+MATCH (u:User)-[:PURCHASED]->(p:Product)\nRETURN u.name AS name, COUNT(p) AS purchased...
+Score: 10.0/10 | Coverage: 100% | [+] +5.0 vs base
+
+
+================================================================================
+Q10: SUM Aggregation (10/20)
+================================================================================
+Question: Calculate total order value for each customer
+
+[BASE MODEL]
+----------------------------------------
+<think>
+Okay, let's see. The user wants to calculate the total order value for each customer based on the given schema. The schema includes a Customer node with a name and an Order node connected to i...
+Score: 8.2/10 | Coverage: 60%
+
+[CHECKPOINT-250]
+----------------------------------------
+<think>
+MATCH (c:Customer)-[:PLACED]->(o:Order)\nRETURN c.name AS Customer, SUM(o.total) AS Total
+</think>
+
+MATCH (c:Customer)-[:PLACED]->(o:Order)\nRETURN c.name AS Customer, SUM(o.total) AS Total OR...
+Score: 10.0/10 | Coverage: 100% | [+] +1.8 vs base
+
+[CHECKPOINT-500]
+----------------------------------------
+<think>
+MATCH (c:Customer)-[:PLACED]->(o:Order)\nRETURN c.name AS customer, sum(o.total) AS total_order_value
+</think>
+
+MATCH (c:Customer)-[:PLACED]->(o:Order)\nRETURN c.name AS customer, sum(o.total)...
+Score: 10.0/10 | Coverage: 100% | [+] +1.8 vs base
+
+[CHECKPOINT-592]
+----------------------------------------
+<think>
+Okay, let's see. The user wants me to calculate the total order value for each customer. From the schema provided, there's a Customer node that has a 'name' property. The relationships are pla...
+Score: 6.6/10 | Coverage: 80% | [-] -1.6 vs base
+
+[FINAL]
+----------------------------------------
+<think>
+MATCH (c:Customer)-[:PLACED]->(o:Order)\nRETURN c.name AS Customer, SUM(o.total) AS Total
+</think>
+
+MATCH (c:Customer)-[:PLACED]->(o:Order)\nRETURN c.name AS Customer, SUM(o.total) AS Total OR...
+Score: 10.0/10 | Coverage: 100% | [+] +1.8 vs base
+
+
+================================================================================
+Q11: AVG and GROUP BY (11/20)
+================================================================================
+Question: Find average rating for each genre
+
+[BASE MODEL]
+----------------------------------------
+<think>
+Okay, let's see. The user wants the average rating for each genre. Hmm, I need to look at the schema provided. There's a Movie node with a rating and a Genre relationship. So each Movie is con...
+Score: 6.2/10 | Coverage: 60%
+
+[CHECKPOINT-250]
+----------------------------------------
+<think>
+Okay, let's see. The user wants the average rating for each genre. So, I need to find the average rating of movies that are in a genre. How do I approach this?
+
+First, I should get the genres ...
+Score: 5.0/10 | Coverage: 100% | [-] -1.2 vs base
+
+[CHECKPOINT-500]
+----------------------------------------
+<think>
+MATCH (m:Movie)-[:IN_GENRE]->(g:Genre)\nWITH g.name AS genre, AVG(m.rating) AS averageRating\nRETURN genre, averageRating
+</think>
+
+MATCH (m:Movie)-[:IN_GENRE]->(g:Genre)\nWITH g.name AS genre...
+Score: 10.0/10 | Coverage: 100% | [+] +3.8 vs base
+
+[CHECKPOINT-592]
+----------------------------------------
+<think>
+SELECT genre.name AS genre_name, AVG(movie.rating) AS average_rating
+FROM Movie
+JOIN Genre ON Movie.genre_id = Genre.id
+GROUP BY genre.name
+ th?c
+</think>
+
+```cypher
+MATCH (:Movie)-[:IN_GENRE]...
+Score: 8.0/10 | Coverage: 100% | [+] +1.8 vs base
+
+[FINAL]
+----------------------------------------
+<think>
+Okay, let's see. The user wants the average rating for each genre. So, first, I need to find all the genres and calculate their average ratings. 
+
+First, I should look at the Movie and Genre r...
+Score: 4.2/10 | Coverage: 60% | [-] -2.0 vs base
+
+
+================================================================================
+Q12: COLLECT Aggregation (12/20)
+================================================================================
+Question: List all books written by each author
+
+[BASE MODEL]
+----------------------------------------
+<think>
+Okay, the user wants me to list all books written by each author. Let me start by understanding the schema provided. The Node properties include Author with name and Book with title. The Relat...
+Score: 6.5/10 | Coverage: 25%
+
+[CHECKPOINT-250]
+----------------------------------------
+<think>
+Okay, let's tackle this problem. The user wants me to list all books written by each author. First, I need to find the authors who have written books and then list the books they've written. 
+...
+Score: 9.0/10 | Coverage: 100% | [+] +2.5 vs base
+
+[CHECKPOINT-500]
+----------------------------------------
+<think>
+Okay, let's see. The user wants me to list all books written by each author. So first, I need to find all authors from the database and then get their books. 
+
+Wait, the relationships are WROT...
+Score: 6.5/10 | Coverage: 75% | [=] +0.0 vs base
+
+[CHECKPOINT-592]
+----------------------------------------
+<think>
+Okay, let's see. The user wants me to list all books written by each author. So, I need to find the books that are written by each author and then display them. 
+
+First, I should figure out th...
+Score: 4.5/10 | Coverage: 25% | [-] -2.0 vs base
+
+[FINAL]
+----------------------------------------
+<think>
+MATCH (a:Author)-[:WROTE]->(b:Book)\nRETURN b.title AS bookTitle, a.name AS authorName
+</think>
+
+MATCH (a:Author)-[:WROTE]->(b:Book)\nRETURN b.title AS bookTitle, a.name AS authorName AS autho...
+Score: 9.5/10 | Coverage: 75% | [+] +3.0 vs base
+
+
+================================================================================
+Q13: Multi-hop Pattern (13/20)
+================================================================================
+Question: Find actors who worked in movies directed by Steven Spielberg
+
+[BASE MODEL]
+----------------------------------------
+<think>
+Okay, let's see. The user wants to find actors who worked in movies directed by Steven Spielberg. So, first, I need to figure out how to connect the actors with the movies they're in and the m...
+Score: 6.7/10 | Coverage: 83%
+
+[CHECKPOINT-250]
+----------------------------------------
+<think>
+Okay, let's see. The user wants actors who acted in movies directed by Steven Spielberg. So I need to find the relationships between actors and movies where the director is Steven Spielberg. 
+...
+Score: 8.3/10 | Coverage: 67% | [+] +1.7 vs base
+
+[CHECKPOINT-500]
+----------------------------------------
+<think>
+Okay, let's tackle this problem. The user wants actors who worked in movies directed by Steven Spielberg. So, I need to find the actors who played in movies that Spielberg directed.
+
+First, I ...
+Score: 5.0/10 | Coverage: 50% | [-] -1.7 vs base
+
+[CHECKPOINT-592]
+----------------------------------------
+<think>
+Okay, let's see. The user wants actors who worked in movies directed by Steven Spielberg. So I need to find the actors and the movies where Spielberg directed them.
+
+First, I should find Steve...
+Score: 7.0/10 | Coverage: 100% | [+] +0.3 vs base
+
+[FINAL]
+----------------------------------------
+<think>
+MATCH (p:Person)-[:DIRECTED_IN]->(m:Movie)-[:ACTED_IN]->() \nWHERE p.name CONTAINS 'Steven' AND m.director = 'Steven Spielberg'\nRETURN p.name AS actor, m.title AS movie
+</think>
+
+MATCH (p:Per...
+Score: 10.0/10 | Coverage: 100% | [+] +3.3 vs base
+
+
+================================================================================
+Q14: Chain of Relationships (14/20)
+================================================================================
+Question: Find all cities in Brazil
+
+[BASE MODEL]
+----------------------------------------
+<think>
+Okay, the user wants to find all cities in Brazil. Let me think about how to approach this.
+
+First, I need to look at the schema provided. The relationships are City -> IN_STATE -> State, and ...
+Score: 7.2/10 | Coverage: 62%
+
+[CHECKPOINT-250]
+----------------------------------------
+<think>
+Okay, I need to find all cities in Brazil. Let me start by looking at the relationships. The country link connects a state to a country. So, first, I should find a country named Brazil. Once I...
+Score: 7.0/10 | Coverage: 100% | [-] -0.2 vs base
+
+[CHECKPOINT-500]
+----------------------------------------
+<think>
+Find all cities in Brazil.
+MATCH (c:City)-[:IN_STATE]->(s:State)-[:IN_COUNTRY]->(c2:Country)-[:IN_CITY]->(c3:City)
+WHERE c2.name = 'Brazil'
+RETURN c.name AS city_name, c2.name AS country_name,...
+Score: 10.0/10 | Coverage: 100% | [+] +2.8 vs base
+
+[CHECKPOINT-592]
+----------------------------------------
+<think>
+Find all cities in Brazil.
+MATCH (c:City)-[:IN_STATE]->(s:State)-[:IN_COUNTRY]->(c:Country)-[:IN_City]->(:City)
+WHERE c.Country.name = 'Brazil'
+RETURN c.name AS city
+</think>
+
+```cypher
+MATCH ...
+Score: 10.0/10 | Coverage: 100% | [+] +2.8 vs base
+
+[FINAL]
+----------------------------------------
+<think>
+Find all cities in Brazil.
+MATCH (c:City)-[:IN_STATE]->(s:State)-[:IN_COUNTRY]->(c:Country)
+WHERE c.Country = 'Brazil'
+RETURN c.name AS city
+</think>
+
+```cypher
+MATCH (c:City)-[:IN_STATE]->(s:...
+Score: 10.0/10 | Coverage: 100% | [+] +2.8 vs base
+
+
+================================================================================
+Q15: Triangle Pattern (15/20)
+================================================================================
+Question: Find people who use products made by their own company
+
+[BASE MODEL]
+----------------------------------------
+<think>
+Okay, let's see. The user wants to find people who use products made by their own company. Hmm. So, first, I need to understand what the relationships are. There's a Person, Company, and Produ...
+Score: 4.0/10 | Coverage: 50%
+
+[CHECKPOINT-250]
+----------------------------------------
+<think>
+Okay, let's tackle this problem. The user wants people who use products made by their own company. So, I need to find those people where their company produces products, and those products are...
+Score: 5.0/10 | Coverage: 50% | [+] +1.0 vs base
+
+[CHECKPOINT-500]
+----------------------------------------
+<think>
+Find people who use products made by their own company.
+</think>
+
+```graph
+Node: Person
+Relationship: USES
+Relationship: WORKS_AT
+Node: Company
+Relationship: PRODUCES
+```
+Score: 6.0/10 | Coverage: 50% | [+] +2.0 vs base
+
+[CHECKPOINT-592]
+----------------------------------------
+<think>
+Find people who use products made by their own company.
+MATCH (p:Person)-[:USES]->(p2:Product)-[:PRODUCES]->(p3:Company)-[:PRODUCES]->(p4:Product)-[:USES]->(p5:Person)
+RETURN p.name AS person,...
+Score: 9.3/10 | Coverage: 67% | [+] +5.3 vs base
+
+[FINAL]
+----------------------------------------
+<think>
+MATCH (p:Person)-[:USES]->(p:Product)-[:PRODUCES]->(c:Company)-[:WORKS_AT]->(p:Company)
+RETURN p.name AS PersonName
+ORDER BY p.name
+??
+</think>
+
+MATCH (p:Person)-[:USES]->(p:Product)-[:PRODUCE...
+Score: 9.7/10 | Coverage: 83% | [+] +5.7 vs base
+
+
+================================================================================
+Q16: Complex Multi-hop (16/20)
+================================================================================
+Question: Find customers who ordered products in the Electronics category
+
+[BASE MODEL]
+----------------------------------------
+<think>
+Okay, let's see. The user wants to find customers who ordered products in the Electronics category. Hmm, I need to look at the schema provided.
+
+First, the relationships are between Customer, ...
+Score: 6.6/10 | Coverage: 78%
+
+[CHECKPOINT-250]
+----------------------------------------
+<think>
+Find customers who ordered products in the Electronics category.
+</think>
+
+MATCH (:Customer)-[:PLACED]->(:Order)-[:CONTAINS]->(:Product WHERE Product.category = 'Electronics')\nRETURN Customer...
+Score: 10.0/10 | Coverage: 100% | [+] +3.4 vs base
+
+[CHECKPOINT-500]
+----------------------------------------
+<think>
+Find customers who ordered products in the Electronics category.
+</think>
+
+```cypher
+MATCH (:Customer)-[:PLACED]->(:Order)-[:CONTAINS]->(:Product)\nWHERE (:Product).category = 'Electronics'\nR...
+Score: 10.0/10 | Coverage: 100% | [+] +3.4 vs base
+
+[CHECKPOINT-592]
+----------------------------------------
+<think>
+Return the `name` of each customer who ordered products in the Electronics category.
+</think>
+
+MATCH (c:Customer)-[:PLACED]->(o:Order)-[:CONTAINS]->(p:Product {category: 'Electronics'})\nRETUR...
+Score: 9.8/10 | Coverage: 89% | [+] +3.2 vs base
+
+[FINAL]
+----------------------------------------
+<think>
+Find customers who ordered products in the Electronics category.
+</think>
+
+MATCH (:Customer)-[:PLACED]->(:Order)-[:CONTAINS]->(:Product WHERE Product.category = 'Electronics')\nRETURN Customer...
+Score: 10.0/10 | Coverage: 100% | [+] +3.4 vs base
+
+
+================================================================================
+Q17: ORDER BY and LIMIT (17/20)
+================================================================================
+Question: Find the top 5 highest rated movies
+
+[BASE MODEL]
+----------------------------------------
+<think>
+Okay, the user wants the top 5 highest rated movies. Let me check the schema provided. The Node properties include title, rating, and released. Relationships are mentioned as none, so there ar...
+Score: 4.9/10 | Coverage: 43%
+
+[CHECKPOINT-250]
+----------------------------------------
+<think>
+Okay, I need to find the top 5 highest rated movies. Let's see. The user mentioned movies, so I should look at the Movie node. The relationships are probably not specified, so I assume there's...
+Score: 9.0/10 | Coverage: 100% | [+] +4.1 vs base
+
+[CHECKPOINT-500]
+----------------------------------------
+<think>
+MATCH (m:Movie)-[r:RATED]->(m2:Movie)\nWITH m2.title AS title, m.rating AS rating\nORDER BY rating DESC\nLIMIT 5
+</think>
+
+MATCH (m:Movie)-[r:RATED]->(m2:Movie)\nWITH m2.title AS title, m.rati...
+Score: 9.7/10 | Coverage: 86% | [+] +4.9 vs base
+
+[CHECKPOINT-592]
+----------------------------------------
+<think>
+MATCH (m:Movie)-[r:RATED]->(m2:Movie)\nRETURN m.title AS Title, m.rating AS Rating, m.released AS Released\nORDER BY Rating DESC\nLIMIT 5
+</think>
+
+MATCH (m:Movie)-[r:RATED]->(m2:Movie)\nRETUR...
+Score: 10.0/10 | Coverage: 100% | [+] +5.1 vs base
+
+[FINAL]
+----------------------------------------
+<think>
+MATCH (m:Movie)-[r:RATED]->(other:Movie)\nRETURN m.title AS MovieTitle, m.rating AS Rating\nORDER BY m.rating DESC\nLIMIT 5
+</think>
+
+MATCH (m:Movie)-[r:RATED]->(other:Movie)\nRETURN m.title A...
+Score: 10.0/10 | Coverage: 100% | [+] +5.1 vs base
+
+
+================================================================================
+Q18: Variable-length Path (18/20)
+================================================================================
+Question: Find all people connected to John within 3 hops
+
+[BASE MODEL]
+----------------------------------------
+<think>
+Okay, let's see. The user wants to find all people connected to John within 3 hops. Hmm, first, I need to figure out how the connections work. The schema mentions a Node with a Person property...
+Score: 6.4/10 | Coverage: 20%
+
+[CHECKPOINT-250]
+----------------------------------------
+<think>
+MATCH (:Person)-[:KNOWS]->(:Person)-[:KNOWS]->(:Person)-[:KNOWS]->(:Person)-[:KNOWS]->(:Person)-[:KNOWS]->(:Person)-[:KNOWS]->(:Person)-[:KNOWS]->(:Person)-[:KNOWS]->(:Person)-[:KNOWS]->(:Pers...
+Score: 5.8/10 | Coverage: 40% | [-] -0.6 vs base
+
+[CHECKPOINT-500]
+----------------------------------------
+<think>
+MATCH (:Person)-[:KNOWS]->(:Person)\nWHERE (:Person)-[:KNOWS]->(:Person) AND (:Person)-[:KNOWS]->(:Person) AND (:Person)-[:KNOWS]->(:Person)\nWITH (:Person)-[:KNOWS]->(:Person) AS connections\...
+Score: 8.6/10 | Coverage: 80% | [+] +2.2 vs base
+
+[CHECKPOINT-592]
+----------------------------------------
+<think>
+MATCH (p:Person)-[:KNOWS]->(:Person)-[:KNOWS]->(p2:Person)\nWHERE p.name = 'John'\nWITH p2.name AS name\nRETURN p2.name\nLIMIT 3
+
+SELECT p2.name AS name
+FROM Person p
+WHERE p.name = 'John'
+WIT...
+Score: 8.0/10 | Coverage: 100% | [+] +1.6 vs base
+
+[FINAL]
+----------------------------------------
+<think>
+MATCH (p:Person)-[:KNOWS]->(:Person)-[:KNOWS]->(p1:Person)-[:KNOWS]->(p2:Person)\nWHERE p.name = 'John'\nWITH p1, p2\nRETURN p1.name AS person1, p2.name AS person2
+</think>
+
+MATCH (p:Person)-[...
+Score: 10.0/10 | Coverage: 100% | [+] +3.6 vs base
+
+
+================================================================================
+Q19: OPTIONAL MATCH (19/20)
+================================================================================
+Question: Find all people and their addresses if they have one
+
+[BASE MODEL]
+----------------------------------------
+<think>
+Okay, let's see. The user wants to find all people and their addresses if they have one. The schema provided has a Node with Person and Address, and there's a relationship between Person and A...
+Score: 6.7/10 | Coverage: 83%
+
+[CHECKPOINT-250]
+----------------------------------------
+<think>
+Okay, let's see. The user wants me to find all people and their addresses where they live. So, I need to find those person names and their associated addresses. 
+
+First, I should look at the r...
+Score: 6.7/10 | Coverage: 83% | [=] +0.0 vs base
+
+[CHECKPOINT-500]
+----------------------------------------
+<think>
+MATCH (p:Person)-[:LIVES_AT]->(a:Address)\nRETURN p.name AS Person, a.street AS Address
+
+SELECT p.name AS Person, a.street AS Address FROM Person JOIN Address WHERE Person.hasLivesAt(Address)
+...
+Score: 7.7/10 | Coverage: 83% | [+] +1.0 vs base
+
+[CHECKPOINT-592]
+----------------------------------------
+<think>
+Find all people and their addresses if they have one.
+</think>
+
+```cypher
+MATCH (:Person {email: ''})-[:LIVES_AT]->(:Address)\nRETURN person.name AS person, address.street AS address
+```
+Score: 9.7/10 | Coverage: 83% | [+] +3.0 vs base
+
+[FINAL]
+----------------------------------------
+<think>
+Find all people and their addresses if they have one.
+</think>
+
+```cypher
+MATCH (p:Person)-[:LIVES_AT]->(a:Address)\nRETURN p.name AS Person, a.street AS Address
+```
+Score: 9.7/10 | Coverage: 83% | [+] +3.0 vs base
+
+
+================================================================================
+Q20: Complex Filter Logic (20/20)
+================================================================================
+Question: Find accounts with deposits over 1000 or withdrawals over 500 in the last month
+
+[BASE MODEL]
+----------------------------------------
+<think>
+Okay, let's tackle this query. The user wants to find accounts where the transaction has a deposit over 1000 or a withdrawal over 500, and the transaction is within the last month. 
+
+First, I ...
+Score: 8.1/10 | Coverage: 57%
+
+[CHECKPOINT-250]
+----------------------------------------
+<think>
+Okay, let's tackle this problem. The user wants to find accounts where the balance is either over 1000 for deposits or over 500 for withdrawals, and they need to look at the last month. 
+
+Firs...
+Score: 5.1/10 | Coverage: 57% | [-] -3.0 vs base
+
+[CHECKPOINT-500]
+----------------------------------------
+<think>
+Okay, let's tackle this query. The user wants to find accounts where the balance has a deposit over 1000 or a withdrawal over 500 in the last month. First, I need to figure out how to structur...
+Score: 8.4/10 | Coverage: 71% | [+] +0.3 vs base
+
+[CHECKPOINT-592]
+----------------------------------------
+<think>
+Okay, let's tackle this problem. The user wants to find accounts where the deposits or withdrawals exceed a certain amount in the last month. The deposits need to be over 1000, and withdrawals...
+Score: 6.4/10 | Coverage: 71% | [-] -1.7 vs base
+
+[FINAL]
+----------------------------------------
+<think>
+Okay, let's tackle this problem. The user wants to find accounts where the balance has a deposit over 1000 or a withdrawal over 500, and they need to consider the last month. 
+
+First, I need t...
+Score: 8.4/10 | Coverage: 71% | [+] +0.3 vs base
+
+
+================================================================================
+[OVERALL SUMMARY - EVOLUTION COMPARISON]
+================================================================================
+
+Average Scores Across 20 Queries:
+  Base Model:      6.64/10
+  checkpoint-250 : 7.99/10  [+] +1.35 vs base (+13.5%)
+  checkpoint-500 : 8.58/10  [+] +1.94 vs base (+19.4%)
+  checkpoint-592 : 8.69/10  [+] +2.05 vs base (+20.5%)
+  final          : 9.13/10  [+] +2.49 vs base (+24.9%)
+
+checkpoint-250 vs Base:
+  Wins:   14/20 (70%)
+  Losses: 5/20 (25%)
+  Ties:   1/20 (5%)
+
+checkpoint-500 vs Base:
+  Wins:   16/20 (80%)
+  Losses: 2/20 (10%)
+  Ties:   2/20 (10%)
+
+checkpoint-592 vs Base:
+  Wins:   16/20 (80%)
+  Losses: 3/20 (15%)
+  Ties:   1/20 (5%)
+
+final vs Base:
+  Wins:   17/20 (85%)
+  Losses: 3/20 (15%)
+  Ties:   0/20 (0%)
+
+Evolution Progression:
+  Base Model: 6.64
+  checkpoint-250 : 7.99  [+] +1.35 from previous
+  checkpoint-500 : 8.58  [+] +0.59 from previous
+  checkpoint-592 : 8.69  [+] +0.11 from previous
+  final          : 9.13  [+] +0.44 from previous
+
+Total Evolution (250 -> final): +1.14 points (+11.4%)
+
+Query-by-Query Comparison:
+--------------------------------------------------------------------------------
+Q1: Basic MATCH                Base=7.0  checkpoint-250=10.0[+]  checkpoint-500=10.0[+]  checkpoint-592=8.0[+]  final=10.0[+]
+Q2: Simple Property Filter     Base=7.0  checkpoint-250=9.3[+]  checkpoint-500=9.3[+]  checkpoint-592=10.0[+]  final=10.0[+]
+Q3: Multiple Properties        Base=6.8  checkpoint-250=9.8[+]  checkpoint-500=10.0[+]  checkpoint-592=9.8[+]  final=9.8[+]
+Q4: String Pattern Matching    Base=7.4  checkpoint-250=9.4[+]  checkpoint-500=9.7[+]  checkpoint-592=10.0[+]  final=6.4[-]
+Q5: Simple Relationship        Base=5.2  checkpoint-250=10.0[+]  checkpoint-500=10.0[+]  checkpoint-592=10.0[+]  final=10.0[+]
+Q6: Bidirectional Relationship Base=8.0  checkpoint-250=10.0[+]  checkpoint-500=10.0[+]  checkpoint-592=10.0[+]  final=10.0[+]
+Q7: Filter on Relationship     Base=6.3  checkpoint-250=7.0[+]  checkpoint-500=10.0[+]  checkpoint-592=8.7[+]  final=7.7[+]
+Q8: Relationship with Properties Base=8.7  checkpoint-250=5.3[-]  checkpoint-500=5.7[-]  checkpoint-592=8.7[=]  final=7.3[-]
+Q9: COUNT Aggregation          Base=5.0  checkpoint-250=8.0[+]  checkpoint-500=5.0[=]  checkpoint-592=9.5[+]  final=10.0[+]
+Q10: SUM Aggregation           Base=8.2  checkpoint-250=10.0[+]  checkpoint-500=10.0[+]  checkpoint-592=6.6[-]  final=10.0[+]
+Q11: AVG and GROUP BY          Base=6.2  checkpoint-250=5.0[-]  checkpoint-500=10.0[+]  checkpoint-592=8.0[+]  final=4.2[-]
+Q12: COLLECT Aggregation       Base=6.5  checkpoint-250=9.0[+]  checkpoint-500=6.5[=]  checkpoint-592=4.5[-]  final=9.5[+]
+Q13: Multi-hop Pattern         Base=6.7  checkpoint-250=8.3[+]  checkpoint-500=5.0[-]  checkpoint-592=7.0[+]  final=10.0[+]
+Q14: Chain of Relationships    Base=7.2  checkpoint-250=7.0[-]  checkpoint-500=10.0[+]  checkpoint-592=10.0[+]  final=10.0[+]
+Q15: Triangle Pattern          Base=4.0  checkpoint-250=5.0[+]  checkpoint-500=6.0[+]  checkpoint-592=9.3[+]  final=9.7[+]
+Q16: Complex Multi-hop         Base=6.6  checkpoint-250=10.0[+]  checkpoint-500=10.0[+]  checkpoint-592=9.8[+]  final=10.0[+]
+Q17: ORDER BY and LIMIT        Base=4.9  checkpoint-250=9.0[+]  checkpoint-500=9.7[+]  checkpoint-592=10.0[+]  final=10.0[+]
+Q18: Variable-length Path      Base=6.4  checkpoint-250=5.8[-]  checkpoint-500=8.6[+]  checkpoint-592=8.0[+]  final=10.0[+]
+Q19: OPTIONAL MATCH            Base=6.7  checkpoint-250=6.7[=]  checkpoint-500=7.7[+]  checkpoint-592=9.7[+]  final=9.7[+]
+Q20: Complex Filter Logic      Base=8.1  checkpoint-250=5.1[-]  checkpoint-500=8.4[+]  checkpoint-592=6.4[-]  final=8.4[+]
+
+================================================================================
+[FINAL VERDICT]
+================================================================================
+
+Best Checkpoint: final
+  Score: 9.13/10 (base: 6.64/10)
+  Improvement: +2.49 points (+24.9%)
+
+[OK] CLEAR POSITIVE EVOLUTION
+   Model improving with more training (+0.59 points from 250->500)
+   Recommendation: Continue to final checkpoint (~655)
+
+[OK] TRAINING VERY SUCCESSFUL
+   Significant improvement vs base (+2.5 points)
+
+================================================================================
