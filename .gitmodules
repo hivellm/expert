@@ -15,3 +15,6 @@
 [submodule "experts/expert-sql"]
 	path = experts/expert-sql
 	url = https://github.com/hivellm/expert-sql
+[submodule "experts/expert-tools"]
+	path = experts/expert-tools
+	url = https://github.com/hivellm/expert-tools.git
