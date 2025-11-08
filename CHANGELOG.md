@@ -168,6 +168,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Documentation
 - README reframed to highlight the broader expert ecosystem instead of emphasizing a single domain expert.
 - README examples and commands converted to neutral placeholders to avoid focusing on individual expert packages.
+- Expert-TypeScript README updated with latest dataset statistics after expansion to ~207k examples.
+
+#### Datasets
+- Expert-TypeScript dataset regenerated: handbook extraction + 100k-file slice of The Stack yielding **207,283** ChatML examples (previously 26,656).
 
 ### Changed - 2025-11-06
 

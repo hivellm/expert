@@ -1,0 +1,39 @@
+{
+  "test_suite": "expert_basic_tests",
+  "version": "1.0.0",
+  "description": "Standard test cases template for expert validation",
+  "test_cases": [
+    {
+      "id": "basic_001",
+      "name": "Simple generation test",
+      "prompt": "Generate a simple example",
+      "expected_keywords": [],
+      "expected_format": "text",
+      "category": "basic"
+    },
+    {
+      "id": "basic_002",
+      "name": "Format compliance test",
+      "prompt": "Generate formatted output",
+      "expected_keywords": [],
+      "expected_format": "structured",
+      "category": "basic"
+    },
+    {
+      "id": "hard_001",
+      "name": "Complex scenario test",
+      "prompt": "Complex test case requiring advanced understanding",
+      "expected_keywords": [],
+      "expected_format": "text",
+      "category": "hard",
+      "may_fail": true,
+      "failure_reason": "Known limitation"
+    }
+  ],
+  "metadata": {
+    "base_model": "Qwen3-0.6B",
+    "expert_version": "0.0.1",
+    "test_date": "2025-11-08"
+  }
+}
+

@@ -245,11 +245,11 @@ impl PagedKVCache {
             _ => 4,
         };
 
-        let total_elements = self.config.num_layers 
-            * self.config.max_pages 
+        let total_elements = self.config.num_layers
+            * self.config.max_pages
             * 2 // K and V
-            * self.config.page_size 
-            * self.config.num_heads 
+            * self.config.page_size
+            * self.config.num_heads
             * self.config.head_dim;
 
         (total_elements * bytes_per_element) as f64 / (1024.0 * 1024.0)

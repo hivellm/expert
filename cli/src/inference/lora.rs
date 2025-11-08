@@ -1,7 +1,7 @@
 // LoRA/IA³/DoRA adapter loading for Candle
 // Loads SafeTensors adapters and applies to model
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use candle_core::{Device, Tensor};
 use std::collections::HashMap;
 use std::path::Path;
@@ -162,7 +162,10 @@ impl LoraAdapter {
         } else {
             return Err(anyhow!(
                 "IA³ vector for layer {} has wrong dimensions. Expected {} or {}, got {}",
-                layer_name, out_features, in_features, ia3_vector.dims1()?
+                layer_name,
+                out_features,
+                in_features,
+                ia3_vector.dims1()?
             ));
         };
 

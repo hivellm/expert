@@ -1,9 +1,9 @@
 // Custom Qwen3 model implementation for Candle
 // Based on official Candle Qwen3 implementation
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use candle_core::{DType, Device, Module, Tensor};
-use candle_nn::{kv_cache::KvCache, Activation, Linear, RmsNorm, VarBuilder};
+use candle_nn::{Activation, Linear, RmsNorm, VarBuilder, kv_cache::KvCache};
 use half::f16;
 use std::sync::Arc;
 

@@ -203,7 +203,7 @@ mod tests {
         // Should list all versions
         let entries: Vec<_> = registry.iter_versions().collect();
         assert_eq!(entries.len(), 3); // 2 sql + 1 json
-        
+
         // Verify versions are present
         assert!(registry.has_expert_version("expert-sql", "0.2.1"));
         assert!(registry.has_expert_version("expert-sql", "0.3.0"));
@@ -227,17 +227,8 @@ mod tests {
 
     #[test]
     fn test_compare_versions() {
-        assert_eq!(
-            compare_versions("0.3.0", "0.2.1"),
-            Ordering::Greater
-        );
-        assert_eq!(
-            compare_versions("0.2.1", "0.3.0"),
-            Ordering::Less
-        );
-        assert_eq!(
-            compare_versions("0.3.0", "0.3.0"),
-            Ordering::Equal
-        );
+        assert_eq!(compare_versions("0.3.0", "0.2.1"), Ordering::Greater);
+        assert_eq!(compare_versions("0.2.1", "0.3.0"), Ordering::Less);
+        assert_eq!(compare_versions("0.3.0", "0.3.0"), Ordering::Equal);
     }
 }

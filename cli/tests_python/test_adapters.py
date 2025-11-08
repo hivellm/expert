@@ -14,7 +14,8 @@ import tempfile
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
-from expert_trainer import TrainingConfig, setup_lora
+from train.config import TrainingConfig
+from train.adapter_setup import setup_adapter
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from peft import LoraConfig, IA3Config, get_peft_model
 
@@ -67,7 +68,7 @@ class TestAdapterTypes:
             gradient_checkpointing=False,
         )
         
-        model_with_adapter = setup_lora(base_model, config)
+        model_with_adapter = setup_adapter(base_model, config)
         
         # Verify adapter was added
         assert hasattr(model_with_adapter, 'peft_config')
@@ -106,7 +107,7 @@ class TestAdapterTypes:
             gradient_checkpointing=False,
         )
         
-        model_with_adapter = setup_lora(base_model, config)
+        model_with_adapter = setup_adapter(base_model, config)
         
         # Verify adapter was added
         assert hasattr(model_with_adapter, 'peft_config')
@@ -143,7 +144,7 @@ class TestAdapterTypes:
             gradient_checkpointing=False,
         )
         
-        model_with_adapter = setup_lora(base_model, config)
+        model_with_adapter = setup_adapter(base_model, config)
         
         # Verify adapter was added
         assert hasattr(model_with_adapter, 'peft_config')
@@ -242,7 +243,7 @@ class TestAdapterTypes:
         )
         
         with pytest.raises(ValueError, match="Unsupported adapter type"):
-            setup_lora(base_model, config)
+            setup_adapter(base_model, config)
 
 
 if __name__ == "__main__":

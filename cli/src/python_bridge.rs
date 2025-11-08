@@ -198,8 +198,23 @@ impl PythonTrainer {
             "dataset": manifest.training.dataset,
         });
 
-        // Write config to temp file
-        let temp_config = std::env::temp_dir().join("expert_train_config.json");
+        // Ensure output directory exists (config will live alongside outputs)
+        if !output_dir.exists() {
+            std::fs::create_dir_all(output_dir).map_err(|e| {
+                crate::error::Error::Training(format!(
+                    "Failed to create output directory {}: {}",
+                    output_dir.display(),
+                    e
+                ))
+            })?;
+        }
+
+        // Write config to deterministic location near output dir to avoid temp cleaners
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis();
+        let temp_config = output_dir.join(format!("expert_train_config_{}.json", timestamp));
         let config_json = serde_json::to_string_pretty(&config)?;
         std::fs::write(&temp_config, &config_json)?;
 
@@ -390,14 +405,15 @@ impl PythonTrainer {
                 path_list.insert(0, current_dir_str)?;
             }
 
-            // Import our training script
-            let trainer_module = py.import_bound("expert_trainer").map_err(|e| {
+            // Import our training script (now from train module)
+            // Try train module first (refactored), fallback to expert_trainer (backward compatibility)
+            let trainer_module = py.import_bound("train").or_else(|_| py.import_bound("expert_trainer")).map_err(|e| {
                 let paths: Vec<String> = (0..path_list.len())
                     .filter_map(|i| path_list.get_item(i).ok())
                     .filter_map(|item| item.extract::<String>().ok())
                     .collect();
                 crate::error::Error::Training(format!(
-                    "Failed to import expert_trainer module. Python path: {:?}, Error: {}",
+                    "Failed to import train/expert_trainer module. Python path: {:?}, Error: {}",
                     paths, e
                 ))
             })?;
@@ -407,6 +423,10 @@ impl PythonTrainer {
 
             // Prepare configuration
             let config = PyDict::new_bound(py);
+
+            // Expert metadata (for progress testing)
+            config.set_item("expert_name", &manifest.name)?;
+            config.set_item("expert_version", &manifest.version)?;
 
             // Base model config - handle both v1.0 and v2.0
             let base_models = manifest.get_base_models();

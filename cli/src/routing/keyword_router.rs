@@ -102,8 +102,9 @@ mod tests {
                 "database".to_string(),
                 "query".to_string(),
             ],
+            exclude_keywords: None,
             router_hint: Some("database=sql".to_string()),
-            priority: 0.8,
+            priority: Some(0.8),
         });
 
         router.add_expert(&sql_manifest);

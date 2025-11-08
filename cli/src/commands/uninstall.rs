@@ -137,10 +137,10 @@ fn remove_expert_files(path: &Path, install_root: &Path) -> Result<(), Error> {
     // Normalize paths - strip \\?\ prefix if present
     let path_str = path.to_string_lossy();
     let root_str = install_root.to_string_lossy();
-    
+
     let normalized_path_str = path_str.strip_prefix(r"\\?\").unwrap_or(&path_str);
     let normalized_root_str = root_str.strip_prefix(r"\\?\").unwrap_or(&root_str);
-    
+
     // Check if path is within install root using string comparison
     if normalized_path_str.starts_with(normalized_root_str) {
         std::fs::remove_dir_all(path).map_err(|e| Error::Io(e))?;
@@ -280,7 +280,7 @@ mod tests {
         let result = remove_expert_files(&expert_path, &experts_dir);
         assert!(result.is_ok());
         assert!(!expert_path.exists());
-        
+
         // Verify parent directory cleanup
         let parent = expert_path.parent().unwrap();
         if parent != experts_dir {

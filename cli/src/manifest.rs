@@ -90,6 +90,103 @@ fn default_schema_version() -> String {
     "1.0".to_string()
 }
 
+#[cfg(test)]
+impl Default for Manifest {
+    fn default() -> Self {
+        Manifest {
+            name: "test-expert".to_string(),
+            version: "0.1.0".to_string(),
+            schema_version: "2.0".to_string(),
+            description: "Test expert".to_string(),
+            author: None,
+            homepage: None,
+            repository: None,
+            base_model: None,
+            base_models: None,
+            adapters: None,
+            soft_prompts: vec![],
+            capabilities: vec![],
+            routing: None,
+            constraints: Constraints {
+                max_chain: None,
+                load_order: 10,
+                incompatible_with: vec![],
+                requires: vec![],
+            },
+            perf: None,
+            runtime: None,
+            training: Training {
+                packaging_checkpoint: None,
+                dataset: Dataset {
+                    path: None,
+                    format: None,
+                    dataset_type: None,
+                    tasks: None,
+                    generation: None,
+                    field_mapping: None,
+                    validation_path: None,
+                    test_path: None,
+                    streaming: None,
+                    max_in_memory_samples: None,
+                    use_pretokenized: None,
+                },
+                config: TrainingConfig {
+                    method: "sft".to_string(),
+                    adapter_type: "lora".to_string(),
+                    rank: Some(16),
+                    alpha: Some(16),
+                    target_modules: vec!["q_proj".to_string()],
+                    epochs: 1.0,
+                    learning_rate: 0.0001,
+                    batch_size: 4,
+                    gradient_accumulation_steps: 4,
+                    warmup_steps: 100,
+                    lr_scheduler: "cosine".to_string(),
+                    max_seq_length: None,
+                    dataloader_num_workers: None,
+                    dataloader_pin_memory: None,
+                    dataloader_prefetch_factor: None,
+                    dataloader_persistent_workers: None,
+                    fp16: None,
+                    bf16: None,
+                    use_tf32: None,
+                    use_sdpa: None,
+                    flash_attention_2: None,
+                    memory_efficient_attention: None,
+                    activation_checkpointing: None,
+                    packing: None,
+                    torch_compile: None,
+                    torch_compile_backend: None,
+                    torch_compile_mode: None,
+                    optim: None,
+                    group_by_length: None,
+                    save_steps: None,
+                    save_strategy: None,
+                    save_total_limit: None,
+                    evaluation_strategy: None,
+                    eval_steps: None,
+                    load_best_model_at_end: None,
+                    metric_for_best_model: None,
+                    greater_is_better: None,
+                    logging_steps: None,
+                    gradient_checkpointing: None,
+                    gradient_checkpointing_kwargs: None,
+                    lr_scheduler_kwargs: None,
+                    pretokenized_cache: None,
+                    feedforward_modules: None,
+                    use_unsloth: None,
+                },
+                decoding: None,
+                metadata: None,
+            },
+            evaluation: None,
+            integrity: None,
+            license: None,
+            tags: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Repository {
     #[serde(rename = "type")]
@@ -636,6 +733,7 @@ mod tests {
             perf: None,
             runtime: None,
             training: Training {
+                packaging_checkpoint: None,
                 dataset: Dataset {
                     path: None,
                     format: None,
@@ -643,6 +741,11 @@ mod tests {
                     tasks: None,
                     generation: None,
                     field_mapping: None,
+                    validation_path: None,
+                    test_path: None,
+                    streaming: None,
+                    max_in_memory_samples: None,
+                    use_pretokenized: None,
                 },
                 config: TrainingConfig {
                     method: "sft".to_string(),
@@ -650,7 +753,7 @@ mod tests {
                     rank: Some(16),
                     alpha: Some(16),
                     target_modules: vec!["q_proj".to_string()],
-                    epochs: 3,
+                    epochs: 3.0,
                     learning_rate: 0.0003,
                     batch_size: 4,
                     gradient_accumulation_steps: 4,
@@ -665,13 +768,30 @@ mod tests {
                     bf16: None,
                     use_tf32: None,
                     use_sdpa: None,
+                    flash_attention_2: None,
+                    memory_efficient_attention: None,
+                    activation_checkpointing: None,
+                    packing: None,
+                    torch_compile: None,
+                    torch_compile_backend: None,
+                    torch_compile_mode: None,
                     optim: None,
                     group_by_length: None,
                     save_steps: None,
+                    save_strategy: None,
+                    save_total_limit: None,
+                    evaluation_strategy: None,
+                    eval_steps: None,
+                    load_best_model_at_end: None,
+                    metric_for_best_model: None,
+                    greater_is_better: None,
                     logging_steps: None,
                     gradient_checkpointing: None,
+                    gradient_checkpointing_kwargs: None,
+                    lr_scheduler_kwargs: None,
                     pretokenized_cache: None,
                     feedforward_modules: None,
+                    use_unsloth: None,
                 },
                 decoding: None,
                 metadata: None,
@@ -746,6 +866,7 @@ mod tests {
             perf: None,
             runtime: None,
             training: Training {
+                packaging_checkpoint: None,
                 dataset: Dataset {
                     path: None,
                     format: None,
@@ -753,6 +874,11 @@ mod tests {
                     tasks: None,
                     generation: None,
                     field_mapping: None,
+                    validation_path: None,
+                    test_path: None,
+                    streaming: None,
+                    max_in_memory_samples: None,
+                    use_pretokenized: None,
                 },
                 config: TrainingConfig {
                     method: "sft".to_string(),
@@ -760,7 +886,7 @@ mod tests {
                     rank: Some(16),
                     alpha: Some(16),
                     target_modules: vec!["q_proj".to_string()],
-                    epochs: 3,
+                    epochs: 3.0,
                     learning_rate: 0.0003,
                     batch_size: 4,
                     gradient_accumulation_steps: 4,
@@ -775,13 +901,30 @@ mod tests {
                     bf16: None,
                     use_tf32: None,
                     use_sdpa: None,
+                    flash_attention_2: None,
+                    memory_efficient_attention: None,
+                    activation_checkpointing: None,
+                    packing: None,
+                    torch_compile: None,
+                    torch_compile_backend: None,
+                    torch_compile_mode: None,
                     optim: None,
                     group_by_length: None,
                     save_steps: None,
+                    save_strategy: None,
+                    save_total_limit: None,
+                    evaluation_strategy: None,
+                    eval_steps: None,
+                    load_best_model_at_end: None,
+                    metric_for_best_model: None,
+                    greater_is_better: None,
                     logging_steps: None,
                     gradient_checkpointing: None,
+                    gradient_checkpointing_kwargs: None,
+                    lr_scheduler_kwargs: None,
                     pretokenized_cache: None,
                     feedforward_modules: None,
+                    use_unsloth: None,
                 },
                 decoding: None,
                 metadata: None,
@@ -865,10 +1008,12 @@ mod tests {
 
         let result = manifest.validate();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("requires 'base_model'"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("requires 'base_model'")
+        );
     }
 
     #[test]
@@ -878,10 +1023,12 @@ mod tests {
 
         let result = manifest.validate();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("requires 'adapters'"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("requires 'adapters'")
+        );
     }
 
     #[test]
@@ -891,10 +1038,12 @@ mod tests {
 
         let result = manifest.validate();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("requires 'base_models'"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("requires 'base_models'")
+        );
     }
 
     #[test]
@@ -904,10 +1053,12 @@ mod tests {
 
         let result = manifest.validate();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("at least one entry"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("at least one entry")
+        );
     }
 
     #[test]
@@ -936,10 +1087,12 @@ mod tests {
 
         let result = manifest.validate();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Duplicate adapter path"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Duplicate adapter path")
+        );
     }
 
     #[test]
@@ -949,23 +1102,27 @@ mod tests {
 
         let result = manifest.validate();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("name cannot be empty"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("name cannot be empty")
+        );
     }
 
     #[test]
     fn test_validate_zero_epochs() {
         let mut manifest = create_test_manifest_v1();
-        manifest.training.config.epochs = 0;
+        manifest.training.config.epochs = 0.0;
 
         let result = manifest.validate();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("epochs must be > 0"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("epochs must be > 0")
+        );
     }
 
     #[test]
@@ -975,10 +1132,12 @@ mod tests {
 
         let result = manifest.validate();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("learning_rate must be > 0"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("learning_rate must be > 0")
+        );
     }
 
     #[test]
@@ -1293,10 +1452,12 @@ mod tests {
 
         let result = manifest.validate();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("name cannot be empty"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("name cannot be empty")
+        );
     }
 
     #[test]
@@ -1309,10 +1470,12 @@ mod tests {
 
         let result = manifest.validate();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("must have at least one adapter"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("must have at least one adapter")
+        );
     }
 
     #[test]
@@ -1444,10 +1607,12 @@ mod tests {
 
         let result = manifest.validate();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("target_modules cannot be empty"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("target_modules cannot be empty")
+        );
     }
 
     #[test]
@@ -1722,7 +1887,7 @@ mod tests {
 
         if let Some(ref mut models) = manifest.base_models {
             models[1].name = "Qwen3-0.6B".to_string(); // Same as first model
-                                                       // But paths must still be unique
+            // But paths must still be unique
             models[1].adapters[0].path = "weights/qwen3-0.6b-int8/adapter.safetensors".to_string();
         }
 
@@ -1799,11 +1964,11 @@ mod tests {
         let mut manifest = create_test_manifest_v1();
 
         // Very high epochs (should be allowed)
-        manifest.training.config.epochs = 1000;
+        manifest.training.config.epochs = 1000.0;
         assert!(manifest.validate().is_ok());
 
         // Single epoch (minimum)
-        manifest.training.config.epochs = 1;
+        manifest.training.config.epochs = 1.0;
         assert!(manifest.validate().is_ok());
     }
 
@@ -1915,6 +2080,7 @@ mod tests {
             perf: None,
             runtime: None,
             training: Training {
+                packaging_checkpoint: None,
                 dataset: Dataset {
                     path: None,
                     format: None,
@@ -1922,6 +2088,11 @@ mod tests {
                     tasks: None,
                     generation: None,
                     field_mapping: None,
+                    validation_path: None,
+                    test_path: None,
+                    streaming: None,
+                    max_in_memory_samples: None,
+                    use_pretokenized: None,
                 },
                 config: TrainingConfig {
                     method: "sft".to_string(),
@@ -1929,7 +2100,7 @@ mod tests {
                     rank: Some(16),
                     alpha: Some(16),
                     target_modules: vec!["q_proj".to_string()],
-                    epochs: 1,
+                    epochs: 1.0,
                     learning_rate: 0.001,
                     batch_size: 1,
                     gradient_accumulation_steps: 1,
@@ -1944,13 +2115,30 @@ mod tests {
                     bf16: None,
                     use_tf32: None,
                     use_sdpa: None,
+                    flash_attention_2: None,
+                    memory_efficient_attention: None,
+                    activation_checkpointing: None,
+                    packing: None,
+                    torch_compile: None,
+                    torch_compile_backend: None,
+                    torch_compile_mode: None,
                     optim: None,
                     group_by_length: None,
                     save_steps: None,
+                    save_strategy: None,
+                    save_total_limit: None,
+                    evaluation_strategy: None,
+                    eval_steps: None,
+                    load_best_model_at_end: None,
+                    metric_for_best_model: None,
+                    greater_is_better: None,
                     logging_steps: None,
                     gradient_checkpointing: None,
+                    gradient_checkpointing_kwargs: None,
+                    lr_scheduler_kwargs: None,
                     pretokenized_cache: None,
                     feedforward_modules: None,
+                    use_unsloth: None,
                 },
                 decoding: None,
                 metadata: None,

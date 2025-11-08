@@ -4,7 +4,7 @@
   "title": "HiveLLM Expert Manifest",
   "description": "Schema for HiveLLM expert package manifests (supports v1.0 and v2.0)",
   "type": "object",
-  "required": ["name", "version", "description", "capabilities", "constraints", "training", "license"],
+  "required": ["name", "version", "description", "capabilities", "constraints", "training", "license", "quality_metrics", "perf"],
   "properties": {
     "name": {
       "type": "string",
@@ -121,7 +121,36 @@
       "type": "array",
       "description": "Known limitations or scenarios where the expert underperforms",
       "items": {
-        "type": "string"
+        "oneOf": [
+          {
+            "type": "string",
+            "description": "Simple string format (legacy, backward compatible)"
+          },
+          {
+            "type": "object",
+            "description": "Structured limitation with pattern, description, example, and workaround",
+            "required": ["pattern", "description"],
+            "properties": {
+              "pattern": {
+                "type": "string",
+                "description": "Identifier for the limitation pattern (e.g., 'recursive_cte', 'avg_group_by')"
+              },
+              "description": {
+                "type": "string",
+                "description": "Human-readable description of the limitation"
+              },
+              "example": {
+                "type": "string",
+                "description": "Example query or scenario that demonstrates the limitation"
+              },
+              "workaround": {
+                "type": "string",
+                "description": "Suggested workaround or alternative approach"
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
       },
       "default": []
     },

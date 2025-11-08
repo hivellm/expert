@@ -18,7 +18,10 @@ fn assert_tensors_close(a: &Tensor, b: &Tensor, tolerance: f32) {
         assert!(
             diff <= tolerance,
             "Tensors differ at index {}: {} vs {} (diff: {})",
-            i, a_val, b_val, diff
+            i,
+            a_val,
+            b_val,
+            diff
         );
     }
 }
@@ -381,9 +384,9 @@ fn test_apply_ia3_adapter() {
     // Row 1: [4,5,6,7] * 0.5 = [2,2.5,3,3.5]
     // Row 2: [8,9,10,11] * 3.0 = [24,27,30,33]
     let expected_data = vec![
-        0.0, 2.0, 4.0, 6.0,      // Row 0 scaled by 2.0
-        2.0, 2.5, 3.0, 3.5,      // Row 1 scaled by 0.5
-        24.0, 27.0, 30.0, 33.0   // Row 2 scaled by 3.0
+        0.0, 2.0, 4.0, 6.0, // Row 0 scaled by 2.0
+        2.0, 2.5, 3.0, 3.5, // Row 1 scaled by 0.5
+        24.0, 27.0, 30.0, 33.0, // Row 2 scaled by 3.0
     ];
 
     let expected = Tensor::from_vec(expected_data, (3, 4), &device).unwrap();

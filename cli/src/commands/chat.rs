@@ -6,8 +6,8 @@ use crate::commands::spec::{display_name, parse_expert_spec};
 use crate::config::AppConfig;
 use crate::error::Result;
 use crate::expert_router::{ExpertRouter, LoadedExpert};
-use crate::inference::generation::GenerationConfig;
 use crate::inference::QwenEngine;
+use crate::inference::generation::GenerationConfig;
 use crate::manifest::Manifest;
 
 /// Format prompt according to expert's template
@@ -81,6 +81,38 @@ fn detect_dialect_from_capabilities(capabilities: &[String]) -> &'static str {
     } else {
         "text"
     }
+}
+
+/// Sanitize responses by removing duplicated code fences or concatenated payloads
+fn sanitize_response(raw: &str) -> String {
+    let trimmed = raw.trim();
+
+    // Prefer explicit ```json fenced block
+    if let Some(start) = trimmed.find("```json") {
+        let after_fence = &trimmed[start + "```json".len()..];
+        if let Some(end) = after_fence.find("```") {
+            return after_fence[..end].trim().to_string();
+        }
+    }
+
+    // Fallback: extract first balanced JSON object
+    if let Some(start) = trimmed.find('{') {
+        let mut depth = 0i32;
+        for (idx, ch) in trimmed[start..].char_indices() {
+            match ch {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return trimmed[start..start + idx + 1].trim().to_string();
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    trimmed.to_string()
 }
 
 pub fn chat(
@@ -357,9 +389,16 @@ pub fn chat(
         }
 
         for expert in &loaded_experts {
-            if let Err(e) = engine.load_soft_prompts_from_manifest(&expert.manifest, &expert.adapter_path) {
+            if let Err(e) =
+                engine.load_soft_prompts_from_manifest(&expert.manifest, &expert.adapter_path)
+            {
                 if !is_oneshot || debug {
-                    println!("    {} Failed to load soft prompts for {}: {}", "⚠️".bright_yellow(), expert.name, e);
+                    println!(
+                        "    {} Failed to load soft prompts for {}: {}",
+                        "⚠️".bright_yellow(),
+                        expert.name,
+                        e
+                    );
                 }
             }
         }
@@ -380,7 +419,10 @@ pub fn chat(
         if !loaded_experts.is_empty() {
             println!("{}", "Commands:".bright_yellow());
             println!("  {} - Switch to expert", "/expert <name>".bright_white());
-            println!("  {} - Activate soft prompt", "/soft <name> or /soft none".bright_white());
+            println!(
+                "  {} - Activate soft prompt",
+                "/soft <name> or /soft none".bright_white()
+            );
             println!("  {} - List soft prompts", "/soft list".bright_white());
             println!("  {} - List loaded experts", "/list".bright_white());
             println!("  {} - Exit chat", "/exit or /quit".bright_white());
@@ -531,12 +573,17 @@ pub fn chat(
             debug,
         ) {
             Ok(response) => {
+                let cleaned = sanitize_response(&response);
                 if debug {
                     print!("\r");
-                    println!("{} {}", "Assistant:".bright_green().bold(), response.trim());
+                    println!(
+                        "{} {}",
+                        "Assistant:".bright_green().bold(),
+                        cleaned.as_str()
+                    );
                 } else {
                     // One-shot mode: just print the response
-                    println!("{}", response.trim());
+                    println!("{}", cleaned);
                 }
             }
             Err(e) => {
@@ -647,8 +694,15 @@ pub fn chat(
                     println!("  None loaded");
                 } else {
                     for name in soft_prompts {
-                        let active = if engine.get_active_soft_prompt_tokens().is_some()
-                            && engine.active_soft_prompt.as_ref() == Some(name) { "→" } else { " " };
+                        let active = if engine
+                            .get_active_soft_prompt_name()
+                            .map(|active| active == name.as_str())
+                            .unwrap_or(false)
+                        {
+                            "→"
+                        } else {
+                            " "
+                        };
                         println!("  {} {}", active, name.bright_cyan());
                     }
                 }
@@ -664,7 +718,11 @@ pub fn chat(
                 let soft_prompts = engine.get_soft_prompts();
                 if soft_prompts.contains(&soft_cmd.to_string()) {
                     engine.activate_soft_prompt(Some(soft_cmd));
-                    println!("{} Activated soft prompt: {}", "✓".bright_green(), soft_cmd.bright_cyan());
+                    println!(
+                        "{} Activated soft prompt: {}",
+                        "✓".bright_green(),
+                        soft_cmd.bright_cyan()
+                    );
                 } else {
                     println!("{} Soft prompt not found: {}", "✗".bright_red(), soft_cmd);
                 }

@@ -11,7 +11,7 @@ pub mod routing;
 pub mod runtime;
 
 pub use error::{Error, Result};
-pub use inference::{generation, lora, QwenEngine};
+pub use inference::{QwenEngine, generation, lora};
 pub use manifest::Manifest;
 pub use registry::{
     AdapterEntry, BaseModelEntry, ExpertRecord, ExpertRegistry, ExpertVersionEntry,

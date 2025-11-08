@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hivellm.org/schemas/quality_metrics.json",
+  "title": "HiveLLM Expert Quality Metrics",
+  "description": "Standardized quality metrics schema for expert evaluation",
+  "type": "object",
+  "required": ["benchmark_score", "base_model_score", "improvement_percent", "win_rate_vs_base", "test_queries", "checkpoint", "test_date"],
+  "properties": {
+    "benchmark_score": {
+      "type": "number",
+      "description": "Overall benchmark score for the expert (0-10 scale recommended)",
+      "minimum": 0.0
+    },
+    "base_model_score": {
+      "type": "number",
+      "description": "Score achieved by the base model for comparison (0-10 scale recommended)",
+      "minimum": 0.0
+    },
+    "improvement_percent": {
+      "type": "number",
+      "description": "Percentage improvement versus base model",
+      "minimum": 0.0
+    },
+    "win_rate_vs_base": {
+      "type": "number",
+      "description": "Win rate versus the base model (0.0-1.0 range, where 1.0 = 100% win rate)",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "test_queries": {
+      "type": "integer",
+      "description": "Number of queries evaluated in the benchmark",
+      "minimum": 0
+    },
+    "checkpoint": {
+      "type": "string",
+      "description": "Identifier for the evaluated checkpoint (e.g., 'final', 'checkpoint-500')"
+    },
+    "training_steps": {
+      "type": "integer",
+      "description": "Training steps completed for the evaluated checkpoint",
+      "minimum": 0
+    },
+    "test_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date of the quality evaluation (ISO 8601 format: YYYY-MM-DD)"
+    },
+    "_comment": {
+      "type": "string",
+      "description": "Additional notes about the evaluation methodology or results"
+    }
+  },
+  "additionalProperties": false,
+  "patternProperties": {
+    "^_": {
+      "type": "string"
+    }
+  }
+}
+

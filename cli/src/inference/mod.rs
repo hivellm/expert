@@ -7,7 +7,7 @@ pub mod paged_kv_cache;
 pub mod qwen;
 pub mod qwen3_model;
 
-pub use generation::{sample_token, GenerationConfig};
+pub use generation::{GenerationConfig, sample_token};
 pub use lora::{AdapterType, LoraAdapter};
 pub use paged_kv_cache::{CacheStats, PagedKVCache, PagedKVCacheConfig};
 pub use qwen::QwenEngine;

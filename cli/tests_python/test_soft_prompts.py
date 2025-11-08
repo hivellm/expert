@@ -6,7 +6,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from expert_trainer import configure_soft_prompts, save_soft_prompts
+from train.adapter_setup import configure_soft_prompts, save_soft_prompts
 from dataclasses import dataclass
 from pathlib import Path
 import torch

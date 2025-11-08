@@ -173,6 +173,9 @@ The `manifest.json` file contains all metadata about the expert. It follows this
 | `description` | string | Yes | Short description of expert's purpose |
 | `author` | string | Yes | Creator/organization name |
 | `homepage` | string | No | URL to expert's documentation/repo |
+| `quality_metrics` | object | **Yes** | Standardized quality and benchmarking metrics (see below) |
+| `perf` | object | **Yes** | Performance characteristics (see below) |
+| `limitations` | array | No | Known limitations (strings or structured objects, see below) |
 
 #### `base_model` Object
 
@@ -289,13 +292,143 @@ When a user selects `document-classifier`, the router automatically:
 
 #### `perf` Object
 
-Performance characteristics:
+Performance characteristics (**required**):
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `latency_ms_overhead` | float | No | Avg load time overhead (ms) |
-| `vram_mb_overhead` | int | No | Approx VRAM usage (MB) |
-| `supported_batch_sizes` | int[] | No | Batch sizes tested with this expert |
+| `latency_ms_overhead` | float | **Yes** | Additional latency when expert is loaded (milliseconds) |
+| `vram_mb_overhead` | int | **Yes** | Additional VRAM usage (megabytes). LoRA: ~15MB, DoRA: ~18MB, IA³: ~2MB |
+| `supported_batch_sizes` | int[] | **Yes** | Batch sizes that work without OOM (minimum 1 item) |
+
+**Example**:
+```json
+{
+  "perf": {
+    "latency_ms_overhead": 2.5,
+    "vram_mb_overhead": 20,
+    "supported_batch_sizes": [1, 2, 4, 8],
+    "_comment": "DoRA r=14 needs 20MB VRAM. Grammar validation adds 0.5ms latency."
+  }
+}
+```
+
+#### `quality_metrics` Object
+
+Standardized quality and benchmarking metrics (**required**):
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `benchmark_score` | float | **Yes** | Overall benchmark score for the expert (0-10 scale recommended) |
+| `base_model_score` | float | **Yes** | Score achieved by the base model for comparison (0-10 scale recommended) |
+| `improvement_percent` | float | **Yes** | Percentage improvement versus base model |
+| `win_rate_vs_base` | float | **Yes** | Win rate versus the base model (0.0-1.0 range, where 1.0 = 100% win rate) |
+| `test_queries` | int | **Yes** | Number of queries evaluated in the benchmark |
+| `checkpoint` | string | **Yes** | Identifier for the evaluated checkpoint (e.g., 'final', 'checkpoint-500') |
+| `training_steps` | int | No | Training steps completed for the evaluated checkpoint |
+| `test_date` | string | **Yes** | Date of the quality evaluation (ISO 8601 format: YYYY-MM-DD) |
+
+**Note**: For experts that haven't been fully evaluated yet, use `0.0` for numeric metrics and `0` for `test_queries`, but include a `_comment` explaining that metrics are pending.
+
+**Example**:
+```json
+{
+  "quality_metrics": {
+    "benchmark_score": 9.13,
+    "base_model_score": 6.64,
+    "improvement_percent": 37.5,
+    "win_rate_vs_base": 0.85,
+    "test_queries": 20,
+    "checkpoint": "final",
+    "training_steps": 655,
+    "test_date": "2025-11-06",
+    "_comment": "Qualitative analysis on 20 diverse queries. Strengths: MATCH patterns (10/10), aggregations (10/10). Weaknesses: AVG GROUP BY (4.2/10)."
+  }
+}
+```
+
+**Pending Metrics Example**:
+```json
+{
+  "quality_metrics": {
+    "benchmark_score": 0.0,
+    "base_model_score": 0.0,
+    "improvement_percent": 0.0,
+    "win_rate_vs_base": 0.0,
+    "test_queries": 0,
+    "checkpoint": "adapter",
+    "training_steps": 0,
+    "test_date": "2025-11-08",
+    "_comment": "Quality metrics pending - expert not yet fully evaluated. Dataset: 207,283 examples. Training configuration: DoRA r=12, 3 epochs."
+  }
+}
+```
+
+#### `limitations` Array
+
+Known limitations or scenarios where the expert underperforms. Can be either simple strings (legacy format, backward compatible) or structured objects (recommended):
+
+**Legacy Format** (backward compatible):
+```json
+{
+  "limitations": [
+    "no_recursive_cte",
+    "no_union_operations"
+  ]
+}
+```
+
+**Structured Format** (recommended):
+```json
+{
+  "limitations": [
+    {
+      "pattern": "no_recursive_cte",
+      "description": "Recursive CTEs (WITH RECURSIVE) remain unreliable - rewrites into self-joins or subqueries instead of proper recursion",
+      "example": "Query: 'Find all ancestors' → Generates self-joins instead of WITH RECURSIVE",
+      "workaround": "Use iterative queries or provide explicit depth limit in prompt"
+    }
+  ]
+}
+```
+
+**Structured Limitation Fields**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `pattern` | string | **Yes** | Identifier for the limitation pattern (e.g., 'recursive_cte', 'avg_group_by') |
+| `description` | string | **Yes** | Human-readable description of the limitation |
+| `example` | string | No | Example query or scenario that demonstrates the limitation |
+| `workaround` | string | No | Suggested workaround or alternative approach |
+
+#### `training.alternative_checkpoints` Object
+
+Alternative checkpoint performance summaries (optional):
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `path` | string | **Yes** | Relative path to the checkpoint artifacts |
+| `step` | int | **Yes** | Training step number |
+| `score` | float | **Yes** | Quality score for this checkpoint |
+| `win_rate` | float | **Yes** | Win rate versus base or reference checkpoint |
+| `best_for` | string[] | No | Scenarios where this checkpoint excels |
+
+**Example**:
+```json
+{
+  "training": {
+    "alternative_checkpoints": {
+      "checkpoint-500": {
+        "path": "weights/qwen3-06b/checkpoint-500",
+        "step": 500,
+        "score": 4.0,
+        "win_rate": 0.40,
+        "best_for": ["syntax_fixes", "stable_outputs"],
+        "_comment": "Better overall score (6/15 = 40%) but still confuses complex schemas."
+      }
+    }
+  }
+}
+```
 
 #### `training` Object
 

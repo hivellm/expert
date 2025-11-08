@@ -228,6 +228,7 @@ mod tests {
                 "database".to_string(),
                 "query".to_string(),
             ],
+            exclude_keywords: None,
             router_hint: Some("database=sql".to_string()),
             priority: Some(0.8),
         });

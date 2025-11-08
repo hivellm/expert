@@ -1,10 +1,10 @@
 // Qwen3 model loader using Candle
 // Based on candle-transformers Qwen2 implementation
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use candle_core::{DType, Device, Tensor};
 use candle_nn::{Activation, VarBuilder};
-use hf_hub::{api::sync::Api, Repo, RepoType};
+use hf_hub::{Repo, RepoType, api::sync::Api};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -55,10 +55,10 @@ pub struct QwenEngine {
     logits_buffer: Vec<f32>,
     // Soft prompts support
     soft_prompts: HashMap<String, Vec<u32>>, // name -> token_ids
-    active_soft_prompt: Option<String>, // currently active soft prompt
+    active_soft_prompt: Option<String>,      // currently active soft prompt
     // Hot-swap support
     base_weights: HashMap<String, Tensor>, // original model weights
-    current_adapter: Option<String>, // currently loaded adapter name
+    current_adapter: Option<String>,       // currently loaded adapter name
 }
 
 #[derive(Debug, Clone)]
@@ -421,7 +421,9 @@ impl QwenEngine {
     /// Load soft prompt from a text file
     pub fn load_soft_prompt(&mut self, name: &str, prompt_text: &str) -> Result<()> {
         // Tokenize the soft prompt text
-        let encoding = self.tokenizer.encode(prompt_text, true)
+        let encoding = self
+            .tokenizer
+            .encode(prompt_text, true)
             .map_err(|e| anyhow!("Failed to tokenize soft prompt: {:?}", e))?;
 
         let token_ids: Vec<u32> = encoding.get_ids().iter().map(|&id| id as u32).collect();
@@ -441,6 +443,11 @@ impl QwenEngine {
             .as_ref()
             .and_then(|name| self.soft_prompts.get(name))
             .map(|tokens| tokens.as_slice())
+    }
+
+    /// Get the name of the active soft prompt (if any)
+    pub fn get_active_soft_prompt_name(&self) -> Option<&str> {
+        self.active_soft_prompt.as_deref()
     }
 
     /// Get list of available soft prompt names
@@ -465,7 +472,11 @@ impl QwenEngine {
     }
 
     /// Hot-swap to a different adapter (<10ms target)
-    pub fn hot_swap_adapter(&mut self, adapter_name: &str, adapter: &super::lora::LoraAdapter) -> Result<()> {
+    pub fn hot_swap_adapter(
+        &mut self,
+        adapter_name: &str,
+        adapter: &super::lora::LoraAdapter,
+    ) -> Result<()> {
         // This is a simplified hot-swap implementation
         // Real hot-swap would require pre-loaded adapters and fast weight swapping
 
@@ -486,16 +497,28 @@ impl QwenEngine {
     }
 
     /// Load soft prompts from manifest
-    pub fn load_soft_prompts_from_manifest(&mut self, manifest: &crate::manifest::Manifest, expert_path: &Path) -> Result<()> {
+    pub fn load_soft_prompts_from_manifest(
+        &mut self,
+        manifest: &crate::manifest::Manifest,
+        expert_path: &Path,
+    ) -> Result<()> {
         for soft_prompt in &manifest.soft_prompts {
             let prompt_path = expert_path.join(&soft_prompt.path);
 
             if prompt_path.exists() {
-                let prompt_text = std::fs::read_to_string(&prompt_path)
-                    .map_err(|e| anyhow!("Failed to read soft prompt file {}: {}", prompt_path.display(), e))?;
+                let prompt_text = std::fs::read_to_string(&prompt_path).map_err(|e| {
+                    anyhow!(
+                        "Failed to read soft prompt file {}: {}",
+                        prompt_path.display(),
+                        e
+                    )
+                })?;
 
                 self.load_soft_prompt(&soft_prompt.name, &prompt_text)?;
-                println!("✅ Loaded soft prompt: {} ({} tokens)", soft_prompt.name, soft_prompt.tokens);
+                println!(
+                    "✅ Loaded soft prompt: {} ({} tokens)",
+                    soft_prompt.name, soft_prompt.tokens
+                );
             } else {
                 println!("⚠️  Soft prompt file not found: {}", prompt_path.display());
             }
@@ -622,14 +645,14 @@ impl QwenEngine {
 
             // Remove PEFT wrapper prefixes from adapter key
             // "base_model.model.model.layers..." -> "model.layers..."
-            let cleaned_name =
-                if let Some(stripped) = layer_name.strip_prefix("base_model.model.") {
-                    stripped
-                } else if let Some(stripped) = layer_name.strip_prefix("base_model.") {
-                    stripped
-                } else {
-                    layer_name
-                };
+            let cleaned_name = if let Some(stripped) = layer_name.strip_prefix("base_model.model.")
+            {
+                stripped
+            } else if let Some(stripped) = layer_name.strip_prefix("base_model.") {
+                stripped
+            } else {
+                layer_name
+            };
 
             // Find corresponding base weight
             let base_key = format!("{}.weight", cleaned_name);
@@ -742,16 +765,19 @@ impl QwenEngine {
             .encode(prompt, true)
             .map_err(|e| anyhow!("Tokenization failed: {:?}", e))?;
         let prompt_tokens: Vec<usize> = encoding.get_ids().iter().map(|&id| id as usize).collect();
-        all_tokens.extend(prompt_tokens);
+        all_tokens.extend_from_slice(&prompt_tokens);
 
         if all_tokens.is_empty() {
             return Err(anyhow!("Please provide a prompt"));
         }
 
         if verbose {
-            println!("   Total tokens: {} (soft: {}, prompt: {})",
+            println!(
+                "   Total tokens: {} (soft: {}, prompt: {})",
                 all_tokens.len(),
-                self.get_active_soft_prompt_tokens().map(|t| t.len()).unwrap_or(0),
+                self.get_active_soft_prompt_tokens()
+                    .map(|t| t.len())
+                    .unwrap_or(0),
                 prompt_tokens.len()
             );
             println!("   Starting generation (max {} tokens)...", max_tokens);
