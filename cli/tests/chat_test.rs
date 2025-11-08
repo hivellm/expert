@@ -4,7 +4,7 @@ use predicates::prelude::*;
 #[test]
 fn test_chat_oneshot_mode() {
     let mut cmd = Command::cargo_bin("expert-cli").unwrap();
-    
+
     cmd.arg("chat")
         .arg("--prompt")
         .arg("Hello world")
@@ -12,15 +12,14 @@ fn test_chat_oneshot_mode() {
         .arg("10")
         .arg("--device")
         .arg("cpu");
-    
-    cmd.assert()
-        .success();
+
+    cmd.assert().success();
 }
 
 #[test]
 fn test_chat_with_expert() {
     let mut cmd = Command::cargo_bin("expert-cli").unwrap();
-    
+
     cmd.arg("chat")
         .arg("--experts")
         .arg("neo4j")
@@ -30,15 +29,14 @@ fn test_chat_with_expert() {
         .arg("10")
         .arg("--device")
         .arg("cpu");
-    
-    cmd.assert()
-        .success();
+
+    cmd.assert().success();
 }
 
 #[test]
 fn test_chat_debug_shows_loading() {
     let mut cmd = Command::cargo_bin("expert-cli").unwrap();
-    
+
     cmd.arg("chat")
         .arg("--prompt")
         .arg("Test")
@@ -47,7 +45,7 @@ fn test_chat_debug_shows_loading() {
         .arg("--device")
         .arg("cpu")
         .arg("--debug");
-    
+
     cmd.assert()
         .success()
         .stdout(predicate::str::contains("Loading"));
@@ -56,7 +54,7 @@ fn test_chat_debug_shows_loading() {
 #[test]
 fn test_chat_quiet_mode_no_extra_output() {
     let mut cmd = Command::cargo_bin("expert-cli").unwrap();
-    
+
     cmd.arg("chat")
         .arg("--prompt")
         .arg("Test")
@@ -64,7 +62,7 @@ fn test_chat_quiet_mode_no_extra_output() {
         .arg("5")
         .arg("--device")
         .arg("cpu");
-    
+
     // Without --debug, should NOT show loading messages
     cmd.assert()
         .success()
@@ -74,7 +72,7 @@ fn test_chat_quiet_mode_no_extra_output() {
 #[test]
 fn test_chat_multiple_experts() {
     let mut cmd = Command::cargo_bin("expert-cli").unwrap();
-    
+
     cmd.arg("chat")
         .arg("--experts")
         .arg("neo4j,sql")
@@ -84,15 +82,14 @@ fn test_chat_multiple_experts() {
         .arg("10")
         .arg("--device")
         .arg("cpu");
-    
-    cmd.assert()
-        .success();
+
+    cmd.assert().success();
 }
 
 #[test]
 fn test_chat_temperature_override() {
     let mut cmd = Command::cargo_bin("expert-cli").unwrap();
-    
+
     cmd.arg("chat")
         .arg("--prompt")
         .arg("Test")
@@ -102,15 +99,14 @@ fn test_chat_temperature_override() {
         .arg("5")
         .arg("--device")
         .arg("cpu");
-    
-    cmd.assert()
-        .success();
+
+    cmd.assert().success();
 }
 
 #[test]
 fn test_chat_sampling_params() {
     let mut cmd = Command::cargo_bin("expert-cli").unwrap();
-    
+
     cmd.arg("chat")
         .arg("--prompt")
         .arg("Test")
@@ -124,8 +120,6 @@ fn test_chat_sampling_params() {
         .arg("5")
         .arg("--device")
         .arg("cpu");
-    
-    cmd.assert()
-        .success();
-}
 
+    cmd.assert().success();
+}

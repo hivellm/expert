@@ -28,10 +28,8 @@ impl KeywordRouter {
 
     pub fn add_expert(&mut self, manifest: &Manifest) {
         if let Some(routing) = &manifest.routing {
-            let keywords: HashSet<String> = routing.keywords
-                .iter()
-                .map(|k| k.to_lowercase())
-                .collect();
+            let keywords: HashSet<String> =
+                routing.keywords.iter().map(|k| k.to_lowercase()).collect();
 
             let priority = routing.priority.unwrap_or(0.5) as f64;
 
@@ -50,10 +48,12 @@ impl KeywordRouter {
             .map(|s| s.to_string())
             .collect();
 
-        let mut results: Vec<RoutingResult> = self.experts
+        let mut results: Vec<RoutingResult> = self
+            .experts
             .iter()
             .map(|expert| {
-                let matched: Vec<String> = expert.keywords
+                let matched: Vec<String> = expert
+                    .keywords
                     .intersection(&query_words)
                     .cloned()
                     .collect();
@@ -81,9 +81,7 @@ impl KeywordRouter {
     }
 
     pub fn route_single(&self, query: &str) -> Option<String> {
-        self.route(query, 1)
-            .first()
-            .map(|r| r.expert_name.clone())
+        self.route(query, 1).first().map(|r| r.expert_name.clone())
     }
 }
 
@@ -99,7 +97,11 @@ mod tests {
         let mut sql_manifest = Manifest::default();
         sql_manifest.name = "expert-sql".to_string();
         sql_manifest.routing = Some(Routing {
-            keywords: vec!["sql".to_string(), "database".to_string(), "query".to_string()],
+            keywords: vec![
+                "sql".to_string(),
+                "database".to_string(),
+                "query".to_string(),
+            ],
             router_hint: Some("database=sql".to_string()),
             priority: 0.8,
         });
@@ -112,4 +114,3 @@ mod tests {
         assert!(results[0].score > 0.0);
     }
 }
-

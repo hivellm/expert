@@ -1,8 +1,10 @@
 // Comprehensive router tests
 // Tests keyword matching, scoring, and ranking
 
+use expert_cli::manifest::{
+    BaseModelV2, Constraints, Dataset, Manifest, Routing, Training, TrainingConfig,
+};
 use expert_cli::router::KeywordRouter;
-use expert_cli::manifest::{Manifest, BaseModelV2, Routing, Constraints, Training, Dataset, TrainingConfig};
 use std::path::Path;
 
 fn create_test_manifest_simple(name: &str, keywords: Vec<&str>, priority: f32) -> Manifest {
@@ -97,13 +99,15 @@ fn test_router_empty() {
 
 #[test]
 fn test_router_exact_match() {
-    let experts = vec![
-        create_test_manifest_simple("expert-neo4j", vec!["neo4j", "cypher", "graph"], 1.0),
-    ];
-    
+    let experts = vec![create_test_manifest_simple(
+        "expert-neo4j",
+        vec!["neo4j", "cypher", "graph"],
+        1.0,
+    )];
+
     let router = KeywordRouter { experts };
     let matches = router.route("generate neo4j cypher query", 5);
-    
+
     assert_eq!(matches.len(), 1);
     assert_eq!(matches[0].expert_name, "expert-neo4j");
     assert!(matches[0].score > 0.0);
@@ -118,10 +122,10 @@ fn test_router_ranking() {
         create_test_manifest_simple("expert-neo4j", vec!["neo4j", "graph"], 1.0),
         create_test_manifest_simple("expert-json", vec!["json", "format"], 1.0),
     ];
-    
+
     let router = KeywordRouter { experts };
     let matches = router.route("create sql database query", 3);
-    
+
     assert!(!matches.is_empty());
     // SQL should rank first due to multiple matches
     assert_eq!(matches[0].expert_name, "expert-sql");
@@ -133,10 +137,10 @@ fn test_router_priority_boost() {
         create_test_manifest_simple("low-priority", vec!["test"], 0.5),
         create_test_manifest_simple("high-priority", vec!["test"], 2.0),
     ];
-    
+
     let router = KeywordRouter { experts };
     let matches = router.route("test query", 2);
-    
+
     assert_eq!(matches.len(), 2);
     // High priority should rank first
     assert_eq!(matches[0].expert_name, "high-priority");
@@ -145,26 +149,30 @@ fn test_router_priority_boost() {
 
 #[test]
 fn test_router_case_insensitive() {
-    let experts = vec![
-        create_test_manifest_simple("expert-test", vec!["TypeScript", "Code"], 1.0),
-    ];
-    
+    let experts = vec![create_test_manifest_simple(
+        "expert-test",
+        vec!["TypeScript", "Code"],
+        1.0,
+    )];
+
     let router = KeywordRouter { experts };
     let matches = router.route("TYPESCRIPT CODE GENERATION", 5);
-    
+
     assert_eq!(matches.len(), 1);
     assert_eq!(matches[0].expert_name, "expert-test");
 }
 
 #[test]
 fn test_router_fuzzy_match() {
-    let experts = vec![
-        create_test_manifest_simple("expert-db", vec!["database", "postgresql"], 1.0),
-    ];
-    
+    let experts = vec![create_test_manifest_simple(
+        "expert-db",
+        vec!["database", "postgresql"],
+        1.0,
+    )];
+
     let router = KeywordRouter { experts };
     let matches = router.route("I need help with my postgres db", 5);
-    
+
     // Should match "database" via "db" fuzzy match
     assert!(!matches.is_empty());
 }
@@ -177,53 +185,62 @@ fn test_router_top_k_limit() {
         create_test_manifest_simple("expert-3", vec!["test"], 0.8),
         create_test_manifest_simple("expert-4", vec!["test"], 0.7),
     ];
-    
+
     let router = KeywordRouter { experts };
     let matches = router.route("test query", 2);
-    
-    assert_eq!(matches.len(), 2);  // Should limit to top 2
+
+    assert_eq!(matches.len(), 2); // Should limit to top 2
 }
 
 #[test]
 fn test_router_no_match() {
-    let experts = vec![
-        create_test_manifest_simple("expert-tech", vec!["neo4j", "sql"], 1.0),
-    ];
-    
+    let experts = vec![create_test_manifest_simple(
+        "expert-tech",
+        vec!["neo4j", "sql"],
+        1.0,
+    )];
+
     let router = KeywordRouter { experts };
     let matches = router.route("cooking recipe", 5);
-    
-    assert_eq!(matches.len(), 0);  // No relevant keywords
+
+    assert_eq!(matches.len(), 0); // No relevant keywords
 }
 
 #[test]
 fn test_router_capability_matching() {
     let mut expert = create_test_manifest_simple("expert-ts", vec!["typescript"], 1.0);
-    expert.capabilities = vec!["language:typescript".to_string(), "code-generation".to_string()];
-    
-    let router = KeywordRouter { experts: vec![expert] };
+    expert.capabilities = vec![
+        "language:typescript".to_string(),
+        "code-generation".to_string(),
+    ];
+
+    let router = KeywordRouter {
+        experts: vec![expert],
+    };
     let matches = router.route("typescript code generation", 5);
-    
+
     assert_eq!(matches.len(), 1);
     assert!(matches[0].matched_capabilities.len() > 0);
 }
 
 #[test]
 fn test_router_score_accumulation() {
-    let experts = vec![
-        create_test_manifest_simple("expert-multi", vec!["sql", "database", "query", "mysql"], 1.0),
-    ];
-    
+    let experts = vec![create_test_manifest_simple(
+        "expert-multi",
+        vec!["sql", "database", "query", "mysql"],
+        1.0,
+    )];
+
     let router = KeywordRouter { experts };
-    
+
     // Query with 1 keyword
     let matches1 = router.route("sql", 5);
     let score1 = matches1[0].score;
-    
+
     // Query with 3 keywords
     let matches3 = router.route("sql database query", 5);
     let score3 = matches3[0].score;
-    
+
     // More keywords should give higher score
     assert!(score3 > score1);
 }
@@ -233,7 +250,7 @@ fn test_router_with_real_manifests() {
     // Try to load real manifests if available
     let expert_paths = ["../experts/expert-neo4j", "../experts/expert-sql"];
     let mut experts = Vec::new();
-    
+
     for path in &expert_paths {
         let manifest_path = Path::new(path).join("manifest.json");
         if manifest_path.exists() {
@@ -242,16 +259,18 @@ fn test_router_with_real_manifests() {
             }
         }
     }
-    
+
     if !experts.is_empty() {
         let router = KeywordRouter { experts };
         let matches = router.route("generate neo4j cypher query", 5);
-        
+
         // Should find neo4j expert if manifest is valid
         if matches.len() > 0 {
-            println!("Real manifest routing works! Found: {}", matches[0].expert_name);
+            println!(
+                "Real manifest routing works! Found: {}",
+                matches[0].expert_name
+            );
             assert!(matches[0].score > 0.0);
         }
     }
 }
-

@@ -15,11 +15,11 @@ impl AppConfig {
         experts_dir: Option<PathBuf>,
     ) -> Self {
         let root = project_root.unwrap_or_else(|| Self::detect_project_root());
-        
+
         let models = models_dir.unwrap_or_else(|| root.join("models"));
         let experts = experts_dir.unwrap_or_else(|| root.join("experts"));
         let venv = root.join("cli").join("venv_windows");
-        
+
         Self {
             project_root: root,
             models_dir: models,
@@ -27,7 +27,7 @@ impl AppConfig {
             venv_dir: venv,
         }
     }
-    
+
     fn detect_project_root() -> PathBuf {
         // Try to detect from current exe location
         if let Ok(exe_path) = std::env::current_exe() {
@@ -42,7 +42,7 @@ impl AppConfig {
                 }
             }
         }
-        
+
         // Fallback: assume current directory is project root or subdirectory
         if let Ok(current_dir) = std::env::current_dir() {
             if current_dir.ends_with("cli") {
@@ -52,11 +52,11 @@ impl AppConfig {
             }
             return current_dir;
         }
-        
+
         // Last resort fallback
         PathBuf::from(".")
     }
-    
+
     pub fn default_base_model(&self) -> PathBuf {
         self.models_dir.join("Qwen3-0.6B")
     }

@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod error_validation_tests {
-    
+
     #[test]
     fn test_v1_missing_base_model_error_message() {
         // Error messages should be clear and actionable
@@ -45,7 +45,7 @@ mod error_validation_tests {
                 }
             }
         }"#;
-        
+
         // This will fail during validation
         // We're testing that JSON parsing succeeds but validation catches the issue
         let parse_result = serde_json::from_str::<serde_json::Value>(json);
@@ -90,11 +90,11 @@ mod error_validation_tests {
                 }
             }
         }"#;
-        
+
         // JSON parsing should succeed (it's valid JSON)
         let result = serde_json::from_str::<serde_json::Value>(json);
         assert!(result.is_ok());
-        
+
         // Validation would catch the conflict
         // Testing that the JSON structure itself is parseable
     }
@@ -107,13 +107,13 @@ mod error_validation_tests {
             "version": "1.0.0",
             missing_quotes: "value"
         }"#;
-        
+
         let result = serde_json::from_str::<serde_json::Value>(bad_json);
         assert!(result.is_err());
-        
+
         let error = result.unwrap_err();
         let error_msg = error.to_string();
-        
+
         // Error should mention the problem
         assert!(error_msg.len() > 0);
     }
@@ -125,9 +125,9 @@ mod error_validation_tests {
             "version": "1.0.0",
             "description": "test"
         }"#;
-        
+
         let result = serde_json::from_str::<serde_json::Value>(json);
-        
+
         // JSON is valid, but manifest validation would catch missing "name"
         assert!(result.is_ok());
     }
@@ -139,7 +139,7 @@ mod error_validation_tests {
             "name": "test",
             "capabilities": "should be array not string"
         }"#;
-        
+
         // This should parse as JSON but fail during manifest deserialization
         let result = serde_json::from_str::<serde_json::Value>(json);
         assert!(result.is_ok());
@@ -155,19 +155,24 @@ mod data_integrity_tests {
         // In v2.0, there should be no adapters at root level
         let content = fs::read_to_string("tests/fixtures/manifest_v2.json")
             .expect("Failed to read v2.0 manifest");
-        
+
         let lines: Vec<&str> = content.lines().collect();
-        
+
         // Find if "adapters" appears before "base_models"
-        let base_models_line = lines.iter()
+        let base_models_line = lines
+            .iter()
             .position(|l| l.contains("\"base_models\""))
             .unwrap();
-        
-        let orphaned_adapters = lines.iter()
+
+        let orphaned_adapters = lines
+            .iter()
             .take(base_models_line)
             .any(|l| l.trim().starts_with("\"adapters\""));
-        
-        assert!(!orphaned_adapters, "No orphaned adapters should exist at root in v2.0");
+
+        assert!(
+            !orphaned_adapters,
+            "No orphaned adapters should exist at root in v2.0"
+        );
     }
 
     #[test]
@@ -175,19 +180,21 @@ mod data_integrity_tests {
         // v1.0 should not have base_models (plural)
         let content = fs::read_to_string("tests/fixtures/manifest_v1.json")
             .expect("Failed to read v1.0 manifest");
-        
-        assert!(!content.contains("\"base_models\""), 
-            "v1.0 should not have base_models array");
+
+        assert!(
+            !content.contains("\"base_models\""),
+            "v1.0 should not have base_models array"
+        );
     }
 
     #[test]
     fn test_weight_path_format_consistency() {
         let v1_content = fs::read_to_string("tests/fixtures/manifest_v1.json").unwrap();
         let v2_content = fs::read_to_string("tests/fixtures/manifest_v2.json").unwrap();
-        
+
         // v1.0: weights/adapter.safetensors
         assert!(v1_content.contains("weights/adapter.safetensors"));
-        
+
         // v2.0: weights/<model>/adapter.safetensors
         assert!(v2_content.contains("weights/qwen3-0.6b/adapter.safetensors"));
         assert!(v2_content.contains("weights/qwen3-1.5b/adapter.safetensors"));
@@ -197,13 +204,13 @@ mod data_integrity_tests {
     fn test_sha256_hash_format() {
         let content = fs::read_to_string("tests/fixtures/manifest_v2.json").unwrap();
         let json: serde_json::Value = serde_json::from_str(&content).unwrap();
-        
+
         // Check that SHA256 fields exist and are strings
         if let Some(base_models) = json.get("base_models").and_then(|v| v.as_array()) {
             for model in base_models {
                 if let Some(sha256) = model.get("sha256") {
                     assert!(sha256.is_string(), "SHA256 should be string");
-                    
+
                     if let Some(hash) = sha256.as_str() {
                         assert!(!hash.is_empty(), "SHA256 should not be empty");
                     }
@@ -215,29 +222,31 @@ mod data_integrity_tests {
     #[test]
     fn test_adapter_type_values() {
         let v2_content = fs::read_to_string("tests/fixtures/manifest_v2.json").unwrap();
-        
+
         // Should contain valid adapter type
-        assert!(v2_content.contains("\"type\": \"lora\"") || 
-                v2_content.contains("\"type\": \"dora\"") ||
-                v2_content.contains("\"type\": \"ia3\""));
+        assert!(
+            v2_content.contains("\"type\": \"lora\"")
+                || v2_content.contains("\"type\": \"dora\"")
+                || v2_content.contains("\"type\": \"ia3\"")
+        );
     }
 
     #[test]
     fn test_learning_rate_scientific_notation() {
         let content = fs::read_to_string("tests/fixtures/manifest_v1.json").unwrap();
-        
+
         // learning_rate should be present
         assert!(content.contains("\"learning_rate\""));
-        
+
         // Should be a valid number
         let json: serde_json::Value = serde_json::from_str(&content).unwrap();
-        let lr = json.get("training")
+        let lr = json
+            .get("training")
             .and_then(|t| t.get("config"))
             .and_then(|c| c.get("learning_rate"))
             .and_then(|v| v.as_f64());
-        
+
         assert!(lr.is_some(), "learning_rate should be present and numeric");
         assert!(lr.unwrap() > 0.0, "learning_rate should be positive");
     }
 }
-

@@ -58,4 +58,3 @@ impl<'a> From<pyo3::DowncastError<'a, '_>> for Error {
         Error::Python(format!("PyO3 downcast error: {}", err))
     }
 }
-

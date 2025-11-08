@@ -1,9 +1,9 @@
 // Routing system for expert selection
 
-pub mod keyword_router;
-pub mod embedding_router;
 pub mod confidence_scorer;
+pub mod embedding_router;
+pub mod keyword_router;
 
-pub use keyword_router::{KeywordRouter, RoutingResult};
+pub use confidence_scorer::{ConfidenceScore, ConfidenceScorer};
 pub use embedding_router::{EmbeddingRouter, EmbeddingRoutingResult};
-pub use confidence_scorer::{ConfidenceScorer, ConfidenceScore};
+pub use keyword_router::{KeywordRouter, RoutingResult};

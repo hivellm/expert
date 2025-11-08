@@ -5,14 +5,23 @@ use colored::Colorize;
 use std::path::PathBuf;
 
 pub fn run(query: &str, top_k: usize, verbose: bool, experts_dir: &PathBuf) -> Result<()> {
-    println!("{}", "╔═══════════════════════════════════════╗".bright_cyan());
-    println!("{}", "║   HiveLLM Expert Routing System     ║".bright_cyan());
-    println!("{}", "╚═══════════════════════════════════════╝".bright_cyan());
+    println!(
+        "{}",
+        "╔═══════════════════════════════════════╗".bright_cyan()
+    );
+    println!(
+        "{}",
+        "║   HiveLLM Expert Routing System     ║".bright_cyan()
+    );
+    println!(
+        "{}",
+        "╚═══════════════════════════════════════╝".bright_cyan()
+    );
     println!();
-    
+
     let mut router = KeywordRouter::new();
     let mut loaded_count = 0;
-    
+
     if verbose {
         println!("📂 Scanning: {}", experts_dir.display());
     }
@@ -34,7 +43,11 @@ pub fn run(query: &str, top_k: usize, verbose: bool, experts_dir: &PathBuf) -> R
                         }
                         Err(e) => {
                             if verbose {
-                                eprintln!("  ⚠️  Skipped {}: {}", path.file_name().unwrap().to_string_lossy(), e);
+                                eprintln!(
+                                    "  ⚠️  Skipped {}: {}",
+                                    path.file_name().unwrap().to_string_lossy(),
+                                    e
+                                );
                             }
                         }
                     }
@@ -45,7 +58,10 @@ pub fn run(query: &str, top_k: usize, verbose: bool, experts_dir: &PathBuf) -> R
         }
     }
 
-    println!("📋 Loaded {} experts", loaded_count.to_string().bright_white());
+    println!(
+        "📋 Loaded {} experts",
+        loaded_count.to_string().bright_white()
+    );
     println!();
 
     // Route query
@@ -70,15 +86,17 @@ pub fn run(query: &str, top_k: usize, verbose: bool, experts_dir: &PathBuf) -> R
     for (i, result) in results.iter().enumerate() {
         let rank = format!("{}.", i + 1);
         let score_pct = (result.score * 100.0) as u32;
-        
-        println!("  {} {} ({}%)", 
+
+        println!(
+            "  {} {} ({}%)",
             rank.bright_blue(),
             result.expert_name.bright_white(),
             score_pct.to_string().bright_green()
         );
 
         if verbose && !result.matched_keywords.is_empty() {
-            println!("     Matched: {}", 
+            println!(
+                "     Matched: {}",
                 result.matched_keywords.join(", ").bright_yellow()
             );
         }
@@ -86,7 +104,10 @@ pub fn run(query: &str, top_k: usize, verbose: bool, experts_dir: &PathBuf) -> R
 
     println!();
     println!("💡 Use this expert:");
-    println!("   {}", format!("expert-cli chat --experts {}", results[0].expert_name).bright_cyan());
+    println!(
+        "   {}",
+        format!("expert-cli chat --experts {}", results[0].expert_name).bright_cyan()
+    );
 
     Ok(())
 }

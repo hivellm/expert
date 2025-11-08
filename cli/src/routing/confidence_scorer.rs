@@ -36,7 +36,7 @@ impl ConfidenceScorer {
     ) -> ConfidenceScore {
         let mut confidence = base_score;
         let mut factors = Vec::new();
-        
+
         // Factor 1: Keyword match quality
         let keyword_factor = if matched_keywords.is_empty() {
             0.5
@@ -45,28 +45,28 @@ impl ConfidenceScorer {
         };
         confidence *= keyword_factor;
         factors.push(format!("keyword_match: {:.2}", keyword_factor));
-        
+
         // Factor 2: Query length (longer queries = more context = higher confidence)
         let query_length_factor = (query.len() as f32 / 100.0).min(1.0);
         confidence *= 0.7 + 0.3 * query_length_factor;
         factors.push(format!("query_length: {:.2}", query_length_factor));
-        
+
         // Factor 3: Historical success rate
         if let Some(&success_rate) = self.expert_success_rate.get(expert_name) {
             confidence *= 0.8 + 0.2 * success_rate;
             factors.push(format!("historical_success: {:.2}", success_rate));
         }
-        
+
         // Factor 4: Query pattern match
         let query_pattern = self.extract_pattern(query);
         if let Some(&pattern_score) = self.query_patterns.get(&query_pattern) {
             confidence *= 0.9 + 0.1 * pattern_score;
             factors.push(format!("pattern_match: {:.2}", pattern_score));
         }
-        
+
         // Normalize confidence to [0, 1]
         confidence = confidence.min(1.0).max(0.0);
-        
+
         ConfidenceScore {
             score: base_score,
             confidence,
@@ -109,17 +109,16 @@ mod tests {
     #[test]
     fn test_confidence_scoring() {
         let scorer = ConfidenceScorer::new();
-        
+
         let score = scorer.score(
             "expert-sql",
             "show all database tables",
             &["sql".to_string(), "database".to_string()],
             0.85,
         );
-        
+
         assert!(score.confidence > 0.0);
         assert!(score.confidence <= 1.0);
         assert!(!score.factors.is_empty());
     }
 }
-

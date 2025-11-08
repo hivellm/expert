@@ -1,7 +1,7 @@
 // Multi-expert manager with hot-swap and pre-loading
 
-use crate::manifest::Manifest;
 use crate::inference::QwenEngine;
+use crate::manifest::Manifest;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -59,73 +59,87 @@ impl ExpertManager {
 
     /// Register an expert (without loading)
     pub fn register_expert(&mut self, name: String, manifest: Manifest, path: PathBuf) {
-        self.experts.insert(name.clone(), ExpertState {
-            name: name.clone(),
-            manifest,
-            path,
-            loaded: false,
-            engine: None,
-            load_time: None,
-            last_used: None,
-        });
+        self.experts.insert(
+            name.clone(),
+            ExpertState {
+                name: name.clone(),
+                manifest,
+                path,
+                loaded: false,
+                engine: None,
+                load_time: None,
+                last_used: None,
+            },
+        );
     }
 
     /// Load an expert (hot-swap)
     pub fn load_expert(&mut self, name: &str, use_cuda: bool) -> anyhow::Result<()> {
         // First check if already loaded (without holding mutable borrow)
         {
-            let expert = self.experts.get(name)
+            let expert = self
+                .experts
+                .get(name)
                 .ok_or_else(|| anyhow::anyhow!("Expert {} not found", name))?;
-            
+
             if expert.loaded {
                 // Already loaded, just update last_used
                 self.experts.get_mut(name).unwrap().last_used = Some(std::time::Instant::now());
                 return Ok(());
             }
         }
-        
+
         // Check if we need to unload another expert
         if self.loaded_count() >= self.max_loaded {
             self.unload_lru()?;
         }
-        
+
         // Get expert path for loading (before taking mutable borrow)
-        let expert_path = self.experts.get(name)
+        let expert_path = self
+            .experts
+            .get(name)
             .ok_or_else(|| anyhow::anyhow!("Expert {} not found", name))?
-            .path.clone();
-        
+            .path
+            .clone();
+
         // Load the expert
         let start = std::time::Instant::now();
         let engine = QwenEngine::from_local(&expert_path, use_cuda)?;
         let load_time = start.elapsed();
-        
+
         // Update expert state
         let expert = self.experts.get_mut(name).unwrap();
         expert.engine = Some(Arc::new(Mutex::new(engine)));
         expert.loaded = true;
         expert.load_time = Some(start);
         expert.last_used = Some(std::time::Instant::now());
-        
-        println!("✅ Loaded expert '{}' in {:.2}ms", name, load_time.as_secs_f64() * 1000.0);
-        
+
+        println!(
+            "✅ Loaded expert '{}' in {:.2}ms",
+            name,
+            load_time.as_secs_f64() * 1000.0
+        );
+
         Ok(())
     }
 
     /// Unload an expert (hot-swap)
     pub fn unload_expert(&mut self, name: &str) -> anyhow::Result<()> {
-        let expert = self.experts.get_mut(name)
+        let expert = self
+            .experts
+            .get_mut(name)
             .ok_or_else(|| anyhow::anyhow!("Expert {} not found", name))?;
-        
+
         if !expert.loaded {
             return Ok(()); // Already unloaded
         }
-        
+
         expert.engine = None;
         expert.loaded = false;
         expert.load_time = None;
-        
+
         println!("✅ Unloaded expert '{}'", name);
-        
+
         Ok(())
     }
 
@@ -133,7 +147,7 @@ impl ExpertManager {
     fn unload_lru(&mut self) -> anyhow::Result<()> {
         let mut lru_name: Option<String> = None;
         let mut lru_time: Option<std::time::Instant> = None;
-        
+
         for (name, expert) in &self.experts {
             if expert.loaded {
                 if let Some(last_used) = expert.last_used {
@@ -144,11 +158,11 @@ impl ExpertManager {
                 }
             }
         }
-        
+
         if let Some(name) = lru_name {
             self.unload_expert(&name)?;
         }
-        
+
         Ok(())
     }
 
@@ -160,41 +174,48 @@ impl ExpertManager {
     /// Pre-load experts based on priority
     pub fn preload_priority(&mut self, use_cuda: bool) -> anyhow::Result<()> {
         // Sort experts by priority (from manifest routing.priority)
-        let mut experts_to_load: Vec<(String, f32)> = self.experts
+        let mut experts_to_load: Vec<(String, f32)> = self
+            .experts
             .iter()
             .filter(|(_, e)| !e.loaded)
             .map(|(name, e)| {
-                let priority = e.manifest.routing
+                let priority = e
+                    .manifest
+                    .routing
                     .as_ref()
                     .and_then(|r| r.priority)
                     .unwrap_or(0.5) as f32;
                 (name.clone(), priority)
             })
             .collect();
-        
+
         experts_to_load.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-        
+
         // Pre-load top N
         for (name, _) in experts_to_load.iter().take(self.max_loaded) {
             if let Err(e) = self.load_expert(name, use_cuda) {
                 eprintln!("⚠️ Failed to pre-load expert '{}': {}", name, e);
             }
         }
-        
+
         Ok(())
     }
 
     /// Get expert engine (loads if needed)
-    pub fn get_expert(&mut self, name: &str, use_cuda: bool) -> anyhow::Result<Arc<Mutex<QwenEngine>>> {
+    pub fn get_expert(
+        &mut self,
+        name: &str,
+        use_cuda: bool,
+    ) -> anyhow::Result<Arc<Mutex<QwenEngine>>> {
         if !self.experts.contains_key(name) {
             return Err(anyhow::anyhow!("Expert {} not registered", name));
         }
-        
+
         // Load if not loaded
         if !self.experts.get(name).unwrap().loaded {
             self.load_expert(name, use_cuda)?;
         }
-        
+
         // Update last_used
         if let Some(expert) = self.experts.get_mut(name) {
             expert.last_used = Some(std::time::Instant::now());
@@ -202,7 +223,7 @@ impl ExpertManager {
                 return Ok(engine.clone());
             }
         }
-        
+
         Err(anyhow::anyhow!("Expert {} not loaded", name))
     }
 
@@ -213,13 +234,13 @@ impl ExpertManager {
             .iter()
             .filter_map(|e| e.load_time.map(|t| t.elapsed().as_secs_f64() * 1000.0))
             .sum();
-        
+
         let avg_load_time = if !loaded.is_empty() {
             total_load_time / loaded.len() as f64
         } else {
             0.0
         };
-        
+
         LoadStats {
             total_experts: self.experts.len(),
             loaded_experts: loaded.len(),
@@ -242,20 +263,15 @@ mod tests {
     #[test]
     fn test_expert_manager() {
         let mut manager = ExpertManager::new(2);
-        
+
         // Register expert
         let mut manifest = Manifest::default();
         manifest.name = "test-expert".to_string();
-        manager.register_expert(
-            "test-expert".to_string(),
-            manifest,
-            PathBuf::from("test"),
-        );
-        
+        manager.register_expert("test-expert".to_string(), manifest, PathBuf::from("test"));
+
         // Stats
         let stats = manager.stats();
         assert_eq!(stats.total_experts, 1);
         assert_eq!(stats.loaded_experts, 0);
     }
 }
-

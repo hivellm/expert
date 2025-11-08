@@ -43,9 +43,9 @@ impl EmbeddingRouter {
         if let Some(routing) = &manifest.routing {
             // Compute embedding from keywords and capabilities
             let embedding = self.compute_expert_embedding(manifest);
-            
+
             let priority = routing.priority.unwrap_or(0.5) as f32;
-            
+
             self.experts.push(ExpertEmbedding {
                 name: manifest.name.clone(),
                 embedding,
@@ -61,7 +61,7 @@ impl EmbeddingRouter {
         // Create a 128-dimensional embedding
         // In production, use sentence-transformers model
         let mut embedding = vec![0.0; 128];
-        
+
         // Weight keywords
         if let Some(routing) = &manifest.routing {
             for (idx, keyword) in routing.keywords.iter().enumerate() {
@@ -70,14 +70,14 @@ impl EmbeddingRouter {
                 embedding[dim] += 1.0 / (idx + 1) as f32; // Inverse position weighting
             }
         }
-        
+
         // Weight capabilities
         for capability in &manifest.capabilities {
             let hash = self.hash_string(capability);
             let dim = hash % 128;
             embedding[dim] += 0.5;
         }
-        
+
         // Normalize
         let norm: f32 = embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
         if norm > 0.0 {
@@ -85,7 +85,7 @@ impl EmbeddingRouter {
                 *x /= norm;
             }
         }
-        
+
         embedding
     }
 
@@ -104,18 +104,18 @@ impl EmbeddingRouter {
         if let Some(cached) = self.embedding_cache.get(query) {
             return cached.clone();
         }
-        
+
         // Compute embedding
         let query_lower = query.to_lowercase();
         let words: Vec<&str> = query_lower.split_whitespace().collect();
         let mut embedding = vec![0.0; 128];
-        
+
         for (idx, word) in words.iter().enumerate() {
             let hash = self.hash_string(word);
             let dim = hash % 128;
             embedding[dim] += 1.0 / (idx + 1) as f32; // Inverse position weighting
         }
-        
+
         // Normalize
         let norm: f32 = embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
         if norm > 0.0 {
@@ -123,10 +123,11 @@ impl EmbeddingRouter {
                 *x /= norm;
             }
         }
-        
+
         // Cache
-        self.embedding_cache.insert(query.to_string(), embedding.clone());
-        
+        self.embedding_cache
+            .insert(query.to_string(), embedding.clone());
+
         embedding
     }
 
@@ -135,11 +136,11 @@ impl EmbeddingRouter {
         if a.len() != b.len() {
             return 0.0;
         }
-        
+
         let dot: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
         let norm_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
         let norm_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
-        
+
         if norm_a > 0.0 && norm_b > 0.0 {
             dot / (norm_a * norm_b)
         } else {
@@ -152,36 +153,40 @@ impl EmbeddingRouter {
         let query_embedding = self.compute_query_embedding(query);
         let query_lower = query.to_lowercase();
         let query_words: Vec<&str> = query_lower.split_whitespace().collect();
-        
-        let mut results: Vec<EmbeddingRoutingResult> = self.experts
+
+        let mut results: Vec<EmbeddingRoutingResult> = self
+            .experts
             .iter()
             .map(|expert| {
                 // Compute embedding similarity
                 let similarity = Self::cosine_similarity(&query_embedding, &expert.embedding);
-                
+
                 // Also check keyword matches
-                let matched_keywords: Vec<String> = expert.keywords
+                let matched_keywords: Vec<String> = expert
+                    .keywords
                     .iter()
                     .filter(|kw| {
                         let kw_lower = kw.to_lowercase();
-                        query_words.iter().any(|w| w.contains(&kw_lower) || kw_lower.contains(w))
+                        query_words
+                            .iter()
+                            .any(|w| w.contains(&kw_lower) || kw_lower.contains(w))
                     })
                     .cloned()
                     .collect();
-                
+
                 // Combine similarity with keyword matches
                 let keyword_score = if expert.keywords.is_empty() {
                     0.0
                 } else {
                     matched_keywords.len() as f32 / expert.keywords.len() as f32
                 };
-                
+
                 // Final score: 70% embedding similarity + 30% keyword match
                 let final_score = (similarity * 0.7 + keyword_score * 0.3) * expert.priority;
-                
+
                 // Confidence based on score magnitude
                 let confidence = final_score.min(1.0).max(0.0);
-                
+
                 EmbeddingRoutingResult {
                     expert_name: expert.name.clone(),
                     score: final_score,
@@ -191,10 +196,10 @@ impl EmbeddingRouter {
             })
             .filter(|r| r.score > 0.0)
             .collect();
-        
+
         // Sort by score descending
         results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
-        
+
         // Return top N
         results.truncate(top_n);
         results
@@ -214,17 +219,21 @@ mod tests {
     #[test]
     fn test_embedding_routing() {
         let mut router = EmbeddingRouter::new();
-        
+
         let mut sql_manifest = Manifest::default();
         sql_manifest.name = "expert-sql".to_string();
         sql_manifest.routing = Some(Routing {
-            keywords: vec!["sql".to_string(), "database".to_string(), "query".to_string()],
+            keywords: vec![
+                "sql".to_string(),
+                "database".to_string(),
+                "query".to_string(),
+            ],
             router_hint: Some("database=sql".to_string()),
             priority: Some(0.8),
         });
-        
+
         router.add_expert(&sql_manifest);
-        
+
         let results = router.route("show all database tables", 1);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].expert_name, "expert-sql");
@@ -232,4 +241,3 @@ mod tests {
         assert!(results[0].confidence > 0.0);
     }
 }
-

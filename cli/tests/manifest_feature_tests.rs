@@ -1,5 +1,5 @@
 // Integration tests for manifest advanced features
-use expert_cli::manifest::{Manifest, DecodingConfig, SoftPrompt};
+use expert_cli::manifest::{DecodingConfig, Manifest, SoftPrompt};
 use std::path::Path;
 
 #[test]
@@ -51,7 +51,7 @@ fn test_soft_prompt_packaging() {
     }"#;
 
     let manifest: Manifest = serde_json::from_str(json).expect("Should parse with soft prompts");
-    
+
     assert_eq!(manifest.soft_prompts.len(), 1);
     assert_eq!(manifest.soft_prompts[0].name, "test_prompt");
     assert_eq!(manifest.soft_prompts[0].tokens, 32);
@@ -61,20 +61,20 @@ fn test_soft_prompt_packaging() {
 #[test]
 fn test_decoding_config_override_order() {
     // Test 3-level priority: CLI > manifest > default
-    
+
     let manifest_temp = Some(0.1);
     let cli_temp = Some(0.5);
     let default_temp = 0.7;
-    
+
     // Priority 1: CLI override wins
     let result = cli_temp.or(manifest_temp).unwrap_or(default_temp);
     assert_eq!(result, 0.5, "CLI should override manifest");
-    
+
     // Priority 2: Manifest wins when no CLI
     let result_no_cli: Option<f64> = None;
     let result = result_no_cli.or(manifest_temp).unwrap_or(default_temp);
     assert_eq!(result, 0.1, "Manifest should be used when no CLI override");
-    
+
     // Priority 3: Default when nothing set
     let result_default: Option<f64> = None;
     let manifest_none: Option<f64> = None;
@@ -128,13 +128,13 @@ fn test_manifest_backward_compatibility() {
 
     let manifest: Manifest = serde_json::from_str(json_without_decoding)
         .expect("Should parse manifest without decoding config");
-    
+
     // Decoding should be None (optional)
     assert!(manifest.training.decoding.is_none());
-    
+
     // Soft prompts should be empty
     assert_eq!(manifest.soft_prompts.len(), 0);
-    
+
     // Should validate successfully
     assert!(manifest.validate().is_ok());
 }
@@ -193,16 +193,18 @@ fn test_decoding_config_all_fields() {
     }"#;
 
     let manifest: Manifest = serde_json::from_str(json).expect("Should parse full decoding config");
-    
+
     let decoding = manifest.training.decoding.expect("Should have decoding");
-    
+
     assert_eq!(decoding.use_grammar, Some(true));
     assert_eq!(decoding.grammar_type, Some("sql-postgres".to_string()));
     assert_eq!(decoding.grammar_file, Some("grammars/sql.gbnf".to_string()));
     assert_eq!(decoding.validation, Some("parser-strict".to_string()));
-    assert_eq!(decoding.stop_sequences, Some(vec![";".to_string(), "\n\n".to_string()]));
+    assert_eq!(
+        decoding.stop_sequences,
+        Some(vec![";".to_string(), "\n\n".to_string()])
+    );
     assert_eq!(decoding.temperature, Some(0.1));
     assert_eq!(decoding.top_p, Some(0.9));
     assert_eq!(decoding.top_k, Some(50));
 }
-
