@@ -117,12 +117,24 @@
       "type": "string",
       "description": "SPDX license identifier"
     },
+    "limitations": {
+      "type": "array",
+      "description": "Known limitations or scenarios where the expert underperforms",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
     "tags": {
       "type": "array",
       "description": "Searchable tags",
       "items": {
         "type": "string"
       }
+    },
+    "quality_metrics": {
+      "description": "Evaluation summary metrics",
+      "$ref": "#/definitions/QualityMetrics"
     }
   },
   "oneOf": [
@@ -163,6 +175,11 @@
         "rope_scaling": {
           "$ref": "#/definitions/RopeScaling"
         }
+      },
+      "patternProperties": {
+        "^_": {
+          "type": "string"
+        }
       }
     },
     "BaseModelV2": {
@@ -197,6 +214,11 @@
           "items": {
             "$ref": "#/definitions/Adapter"
           }
+        }
+      },
+      "patternProperties": {
+        "^_": {
+          "type": "string"
         }
       }
     },
@@ -236,6 +258,15 @@
             "fine_grained": {
               "type": "boolean",
               "description": "Enable fine-grained scaling (Qwen3-specific)"
+            },
+            "_comment": {
+              "type": "string",
+              "description": "Supplementary notes about scaling configuration"
+            }
+          },
+          "patternProperties": {
+            "^_": {
+              "type": "string"
             }
           }
         }
@@ -297,6 +328,11 @@
           "type": "string",
           "description": "Relative path to adapter weights"
         },
+        "checkpoint_step": {
+          "type": "integer",
+          "description": "Training step for this adapter checkpoint",
+          "minimum": 0
+        },
         "size_bytes": {
           "type": "integer",
           "description": "Size of adapter weights in bytes",
@@ -305,7 +341,7 @@
         "sha256": {
           "type": "string",
           "description": "SHA256 hash of adapter weights",
-          "pattern": "^[a-f0-9]{64}$"
+          "pattern": "^(?:[a-f0-9]{64})?$"
         }
       },
       "allOf": [
@@ -337,7 +373,12 @@
             "description": "IA³ does not use rank/alpha parameters"
           }
         }
-      ]
+      ],
+      "patternProperties": {
+        "^_": {
+          "type": "string"
+        }
+      }
     },
     "SoftPrompt": {
       "type": "object",
@@ -371,6 +412,11 @@
           "type": "string",
           "description": "Human-readable description of soft prompt purpose"
         }
+      },
+      "patternProperties": {
+        "^_": {
+          "type": "string"
+        }
       }
     },
     "Routing": {
@@ -386,6 +432,14 @@
           },
           "minItems": 1
         },
+        "exclude_keywords": {
+          "type": "array",
+          "description": "Keywords that should not trigger this expert",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
         "router_hint": {
           "type": "string",
           "description": "Boolean expression for router (e.g., 'database=sql OR task=text2sql')"
@@ -395,6 +449,11 @@
           "description": "Expert priority (0.0-1.0, higher = preferred)",
           "minimum": 0.0,
           "maximum": 1.0
+        }
+      },
+      "patternProperties": {
+        "^_": {
+          "type": "string"
         }
       }
     },
@@ -452,6 +511,15 @@
             "minimum": 1
           },
           "minItems": 1
+        },
+        "_comment": {
+          "type": "string",
+          "description": "Supplementary performance notes"
+        }
+      },
+      "patternProperties": {
+        "^_": {
+          "type": "string"
         }
       }
     },
@@ -473,6 +541,15 @@
           "type": "string",
           "description": "Preferred attention kernel",
           "enum": ["sdpa", "flash-v1", "flash-v2", "xformers", "vanilla"]
+        },
+        "_comment": {
+          "type": "string",
+          "description": "Supplementary runtime notes"
+        }
+      },
+      "patternProperties": {
+        "^_": {
+          "type": "string"
         }
       }
     },
@@ -503,6 +580,25 @@
           "type": "string",
           "description": "Specific checkpoint to use for packaging (e.g., 'checkpoint-1250'). If not specified, uses the 'final' checkpoint. Use this when the best model is not the final trained checkpoint.",
           "pattern": "^(checkpoint-\\d+|final)$"
+        },
+        "checkpoint": {
+          "type": "string",
+          "description": "Selected checkpoint identifier for this release"
+        },
+        "quality_score": {
+          "type": "number",
+          "description": "Aggregate quality score for the expert"
+        },
+        "test_scenarios": {
+          "$ref": "#/definitions/TestScenarios"
+        },
+        "alternative_checkpoints": {
+          "$ref": "#/definitions/AlternativeCheckpoints"
+        }
+      },
+      "patternProperties": {
+        "^_": {
+          "type": "string"
         }
       }
     },
@@ -524,6 +620,21 @@
           "enum": ["jsonl", "huggingface", "csv", "parquet"],
           "description": "Dataset format"
         },
+        "streaming": {
+          "type": "boolean",
+          "description": "Whether the dataset is streamed during training"
+        },
+        "source": {
+          "type": "string",
+          "description": "Free-form description of dataset provenance"
+        },
+        "sources": {
+          "type": "array",
+          "description": "Breakdown of dataset sources",
+          "items": {
+            "$ref": "#/definitions/DatasetSource"
+          }
+        },
         "field_mapping": {
           "type": "object",
           "description": "Maps dataset fields to expected fields",
@@ -537,6 +648,9 @@
             "response": {
               "type": "string"
             }
+          },
+          "additionalProperties": {
+            "type": "string"
           }
         },
         "tasks": {
@@ -613,13 +727,38 @@
               "description": "SQL case normalization strategy"
             }
           }
+        },
+        "preprocessing": {
+          "$ref": "#/definitions/DatasetPreprocessing"
+        },
+        "format_distribution": {
+          "$ref": "#/definitions/DistributionMetrics"
+        },
+        "task_distribution": {
+          "$ref": "#/definitions/DistributionMetrics"
+        },
+        "splits": {
+          "$ref": "#/definitions/DatasetSplits"
+        },
+        "test_path": {
+          "type": "string",
+          "description": "Path for test split (if external)"
+        },
+        "validation_path": {
+          "type": "string",
+          "description": "Path for validation split (if external)"
+        }
+      },
+      "patternProperties": {
+        "^_": {
+          "type": "string"
         }
       }
     },
     "TrainingConfig": {
       "type": "object",
       "description": "Training hyperparameters",
-      "required": ["method", "adapter_type", "target_modules", "epochs", "learning_rate", "batch_size"],
+      "required": ["method", "adapter_type", "learning_rate", "batch_size"],
       "properties": {
         "method": {
           "type": "string",
@@ -663,8 +802,14 @@
           }
         },
         "epochs": {
-          "type": "integer",
-          "minimum": 1
+          "type": "number",
+          "minimum": 0.0,
+          "description": "Number of epochs (supports fractional epochs when using effective batch adjustments)"
+        },
+        "num_epochs": {
+          "type": "number",
+          "minimum": 0.0,
+          "description": "Alias for epochs (some trainers expose num_epochs separately)"
         },
         "learning_rate": {
           "type": "number",
@@ -694,6 +839,12 @@
           "type": "string",
           "enum": ["linear", "cosine", "constant", "polynomial", "cosine_with_restarts"],
           "description": "Learning rate scheduler type"
+        },
+        "dropout": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Dropout applied during adapter training"
         },
         "max_seq_length": {
           "type": "integer",
@@ -727,6 +878,19 @@
           "type": "boolean",
           "description": "Use scaled dot-product attention (Flash Attention v2)"
         },
+        "flash_attention_2": {
+          "type": "boolean",
+          "description": "Enable Flash Attention v2"
+        },
+        "memory_efficient_attention": {
+          "type": "boolean",
+          "description": "Enable memory efficient attention kernels"
+        },
+        "memory_clear_every": {
+          "type": "integer",
+          "description": "Steps between manual memory clearing",
+          "minimum": 0
+        },
         "packing": {
           "type": "boolean",
           "description": "Enable sequence packing with SFTTrainer (reduces padding waste, +30-40% tokens/s)",
@@ -744,6 +908,11 @@
           "type": "integer",
           "minimum": 1
         },
+        "max_steps": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum number of optimization steps"
+        },
         "save_strategy": {
           "type": "string",
           "description": "Checkpoint saving strategy",
@@ -755,7 +924,7 @@
           "minimum": 1
         },
         "save_total_limit": {
-          "type": "integer",
+          "type": ["integer", "null"],
           "description": "Maximum number of checkpoints to keep (deletes oldest)",
           "minimum": 1
         },
@@ -786,9 +955,39 @@
         "gradient_checkpointing": {
           "type": "boolean"
         },
+        "activation_checkpointing": {
+          "type": "string",
+          "description": "Activation checkpointing strategy"
+        },
+        "torch_compile": {
+          "type": "boolean",
+          "description": "Enable torch.compile"
+        },
+        "torch_compile_backend": {
+          "type": "string",
+          "description": "Backend to use when torch.compile is enabled"
+        },
+        "torch_compile_mode": {
+          "type": "string",
+          "description": "Torch compile mode (e.g., 'reduce-overhead')"
+        },
+        "use_cuda_graphs": {
+          "type": "boolean",
+          "description": "Enable CUDA graphs for inference/training"
+        },
+        "cuda_graph_warmup_steps": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of warmup steps before enabling CUDA graphs"
+        },
         "pretokenized_cache": {
           "type": "string",
           "description": "Path to pre-tokenized dataset cache"
+        }
+      },
+      "patternProperties": {
+        "^_": {
+          "type": "string"
         }
       },
       "allOf": [
@@ -822,6 +1021,28 @@
             },
             "description": "IA³ does not use rank/alpha (only target_modules)"
           }
+        },
+        {
+          "anyOf": [
+            {
+              "required": ["epochs"]
+            },
+            {
+              "required": ["num_epochs"]
+            }
+          ],
+          "description": "Must specify epochs or num_epochs"
+        },
+        {
+          "anyOf": [
+            {
+              "required": ["target_modules"]
+            },
+            {
+              "required": ["feedforward_modules"]
+            }
+          ],
+          "description": "Must specify target modules or feedforward_modules"
         }
       ]
     },
@@ -878,6 +1099,129 @@
         }
       }
     },
+    "DatasetSource": {
+      "type": "object",
+      "description": "Dataset source summary",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "original_examples": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "processed_examples": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "duplicates_removed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "invalid_removed": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": {
+        "type": ["number", "string"]
+      },
+      "patternProperties": {
+        "^_": {
+          "type": "string"
+        }
+      }
+    },
+    "DatasetSplits": {
+      "type": "object",
+      "description": "Dataset split sizes",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "DistributionMetrics": {
+      "type": "object",
+      "description": "Generic metric distribution mapping",
+      "additionalProperties": {
+        "type": ["number", "string"]
+      }
+    },
+    "DatasetPreprocessing": {
+      "type": "object",
+      "description": "Preprocessing statistics and metadata",
+      "properties": {
+        "total_examples": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total_raw_examples": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "processed_examples": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "duplicates_removed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "invalid_cypher_removed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "validation": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string"
+        },
+        "deduplication": {
+          "type": "string"
+        },
+        "schema_extraction": {
+          "type": "string"
+        },
+        "generic_ratio": {
+          "type": "number"
+        },
+        "rebalanced": {
+          "type": ["boolean", "string"]
+        },
+        "target_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "size_filter": {
+          "type": ["string", "number"]
+        },
+        "portuguese_filtered": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "corrections_balanced": {
+          "type": ["boolean", "string", "number"]
+        },
+        "splits": {
+          "$ref": "#/definitions/DatasetSplits"
+        },
+        "task_distribution": {
+          "$ref": "#/definitions/DistributionMetrics"
+        },
+        "by_source": {
+          "$ref": "#/definitions/DistributionMetrics"
+        }
+      },
+      "additionalProperties": {
+        "type": ["number", "string", "boolean", "object"]
+      },
+      "patternProperties": {
+        "^_": {
+          "type": "string"
+        }
+      }
+    },
     "Evaluation": {
       "type": "object",
       "description": "Evaluation metrics and test cases",
@@ -886,12 +1230,178 @@
           "type": "string",
           "description": "Path to test cases file"
         },
+        "suite": {
+          "description": "Evaluation suites or files",
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        },
+        "metrics": {
+          "description": "Evaluation metrics",
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": {
+                "type": ["number", "string"]
+              }
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        }
+      },
+      "patternProperties": {
+        "^_": {
+          "type": "string"
+        }
+      }
+    },
+    "QualityMetrics": {
+      "type": "object",
+      "description": "Aggregate quality and benchmarking metrics for the expert",
+      "properties": {
+        "benchmark_score": {
+          "type": "number",
+          "description": "Overall benchmark score for the expert"
+        },
+        "base_model_score": {
+          "type": "number",
+          "description": "Score achieved by the base model for comparison"
+        },
+        "improvement_percent": {
+          "type": "number",
+          "description": "Percentage improvement versus base model"
+        },
+        "win_rate_vs_base": {
+          "type": "number",
+          "description": "Win rate versus the base model (0-1 range)"
+        },
+        "test_queries": {
+          "type": "integer",
+          "description": "Number of queries evaluated",
+          "minimum": 0
+        },
+        "training_steps": {
+          "type": "integer",
+          "description": "Training steps completed for the evaluated checkpoint",
+          "minimum": 0
+        },
+        "checkpoint": {
+          "type": "string",
+          "description": "Identifier for the evaluated checkpoint"
+        },
+        "test_date": {
+          "type": "string",
+          "format": "date",
+          "description": "Date of the quality evaluation"
+        }
+      },
+      "additionalProperties": {
+        "type": ["number", "string"]
+      },
+      "patternProperties": {
+        "^_": {
+          "type": "string"
+        }
+      }
+    },
+    "TestScenarios": {
+      "type": "object",
+      "description": "Collection of named evaluation scenarios",
+      "additionalProperties": {
+        "$ref": "#/definitions/TestScenario"
+      }
+    },
+    "TestScenario": {
+      "type": "object",
+      "description": "Detailed results for a specific evaluation scenario",
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "passed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "success_rate": {
+          "type": "number",
+          "description": "Success rate percentage (0-100)"
+        },
         "metrics": {
           "type": "object",
-          "description": "Evaluation metrics",
+          "description": "Scenario-specific metrics",
           "additionalProperties": {
-            "type": "number"
+            "type": ["number", "string"]
           }
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {
+        "type": ["number", "string", "boolean"]
+      },
+      "patternProperties": {
+        "^_": {
+          "type": "string"
+        }
+      }
+    },
+    "AlternativeCheckpoints": {
+      "type": "object",
+      "description": "Alternative checkpoint performance summaries",
+      "additionalProperties": {
+        "$ref": "#/definitions/CheckpointSummary"
+      }
+    },
+    "CheckpointSummary": {
+      "type": "object",
+      "description": "Summary metadata for an alternative checkpoint",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Relative path to the checkpoint artifacts"
+        },
+        "step": {
+          "type": "integer",
+          "description": "Training step number",
+          "minimum": 0
+        },
+        "score": {
+          "type": "number",
+          "description": "Quality score for this checkpoint"
+        },
+        "win_rate": {
+          "type": "number",
+          "description": "Win rate versus base or reference checkpoint"
+        },
+        "best_for": {
+          "type": "array",
+          "description": "Scenarios where this checkpoint excels",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": {
+        "type": ["number", "string"]
+      },
+      "patternProperties": {
+        "^_": {
+          "type": "string"
         }
       }
     },

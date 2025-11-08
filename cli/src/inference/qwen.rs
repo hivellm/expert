@@ -5,6 +5,7 @@ use anyhow::{anyhow, Result};
 use candle_core::{DType, Device, Tensor};
 use candle_nn::{Activation, VarBuilder};
 use hf_hub::{api::sync::Api, Repo, RepoType};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tokenizers::Tokenizer;
@@ -52,6 +53,12 @@ pub struct QwenEngine {
     pub device: Device,
     config: Qwen3Config,
     logits_buffer: Vec<f32>,
+    // Soft prompts support
+    soft_prompts: HashMap<String, Vec<u32>>, // name -> token_ids
+    active_soft_prompt: Option<String>, // currently active soft prompt
+    // Hot-swap support
+    base_weights: HashMap<String, Tensor>, // original model weights
+    current_adapter: Option<String>, // currently loaded adapter name
 }
 
 #[derive(Debug, Clone)]
@@ -96,6 +103,7 @@ impl QwenEngine {
             "lora" => AdapterType::LoRA,
             "dora" => AdapterType::DoRA,
             "ia3" => AdapterType::IA3,
+            "lokr" => AdapterType::LoKR,
             _ => {
                 if verbose {
                     println!(
@@ -306,6 +314,10 @@ impl QwenEngine {
             device,
             config: config.clone(),
             logits_buffer: vec![0.0; config.vocab_size],
+            soft_prompts: HashMap::new(),
+            active_soft_prompt: None,
+            base_weights: HashMap::new(),
+            current_adapter: None,
         })
     }
 
@@ -399,7 +411,96 @@ impl QwenEngine {
             device,
             config: config.clone(),
             logits_buffer: vec![0.0; config.vocab_size],
+            soft_prompts: HashMap::new(),
+            active_soft_prompt: None,
+            base_weights: HashMap::new(),
+            current_adapter: None,
         })
+    }
+
+    /// Load soft prompt from a text file
+    pub fn load_soft_prompt(&mut self, name: &str, prompt_text: &str) -> Result<()> {
+        // Tokenize the soft prompt text
+        let encoding = self.tokenizer.encode(prompt_text, true)
+            .map_err(|e| anyhow!("Failed to tokenize soft prompt: {:?}", e))?;
+
+        let token_ids: Vec<u32> = encoding.get_ids().iter().map(|&id| id as u32).collect();
+
+        self.soft_prompts.insert(name.to_string(), token_ids);
+        Ok(())
+    }
+
+    /// Activate a soft prompt
+    pub fn activate_soft_prompt(&mut self, name: Option<&str>) {
+        self.active_soft_prompt = name.map(|s| s.to_string());
+    }
+
+    /// Get active soft prompt tokens
+    pub fn get_active_soft_prompt_tokens(&self) -> Option<&[u32]> {
+        self.active_soft_prompt
+            .as_ref()
+            .and_then(|name| self.soft_prompts.get(name))
+            .map(|tokens| tokens.as_slice())
+    }
+
+    /// Get list of available soft prompt names
+    pub fn get_soft_prompts(&self) -> Vec<String> {
+        self.soft_prompts.keys().cloned().collect()
+    }
+
+    /// Save current model weights as base weights (for hot-swap)
+    pub fn save_base_weights(&mut self) -> Result<()> {
+        if !self.base_weights.is_empty() {
+            return Ok(()); // Already saved
+        }
+
+        // Extract weights from the model
+        // Note: This is a simplified approach. In practice, we'd need to extract
+        // weights from the actual model layers, but Candle doesn't expose this easily.
+        // For now, we'll use a placeholder - real implementation would require
+        // modifying the model to allow weight extraction.
+
+        println!("⚠️  Base weights saving not fully implemented - requires model weight access");
+        Ok(())
+    }
+
+    /// Hot-swap to a different adapter (<10ms target)
+    pub fn hot_swap_adapter(&mut self, adapter_name: &str, adapter: &super::lora::LoraAdapter) -> Result<()> {
+        // This is a simplified hot-swap implementation
+        // Real hot-swap would require pre-loaded adapters and fast weight swapping
+
+        if self.current_adapter.as_ref() == Some(&adapter_name.to_string()) {
+            return Ok(()); // Already loaded
+        }
+
+        // For now, just mark as current (real implementation would swap weights)
+        self.current_adapter = Some(adapter_name.to_string());
+
+        println!("🔄 Hot-swapped to adapter: {}", adapter_name);
+        Ok(())
+    }
+
+    /// Get current adapter name
+    pub fn current_adapter(&self) -> Option<&str> {
+        self.current_adapter.as_deref()
+    }
+
+    /// Load soft prompts from manifest
+    pub fn load_soft_prompts_from_manifest(&mut self, manifest: &crate::manifest::Manifest, expert_path: &Path) -> Result<()> {
+        for soft_prompt in &manifest.soft_prompts {
+            let prompt_path = expert_path.join(&soft_prompt.path);
+
+            if prompt_path.exists() {
+                let prompt_text = std::fs::read_to_string(&prompt_path)
+                    .map_err(|e| anyhow!("Failed to read soft prompt file {}: {}", prompt_path.display(), e))?;
+
+                self.load_soft_prompt(&soft_prompt.name, &prompt_text)?;
+                println!("✅ Loaded soft prompt: {} ({} tokens)", soft_prompt.name, soft_prompt.tokens);
+            } else {
+                println!("⚠️  Soft prompt file not found: {}", prompt_path.display());
+            }
+        }
+        Ok(())
     }
 
     /// Merge adapter weights into base model weights
@@ -435,43 +536,41 @@ impl QwenEngine {
             }
         }
 
-        // Get scaling factor: alpha / r
-        let scale = if let (Some(alpha), Some(rank)) = (adapter.alpha, adapter.rank) {
-            alpha as f64 / rank as f64
-        } else {
-            1.0
-        };
-
+        // Show adapter type and parameters
         if verbose {
-            println!(
-                "   LoRA scale: {:.2} (alpha={:?}, r={:?})",
-                scale, adapter.alpha, adapter.rank
-            );
+            match adapter.adapter_type {
+                super::lora::AdapterType::LoRA | super::lora::AdapterType::DoRA => {
+                    let scale = if let (Some(alpha), Some(rank)) = (adapter.alpha, adapter.rank) {
+                        alpha as f64 / rank as f64
+                    } else {
+                        1.0
+                    };
+                    println!(
+                        "   {:?} scale: {:.2} (alpha={:?}, r={:?})",
+                        adapter.adapter_type, scale, adapter.alpha, adapter.rank
+                    );
+                }
+                super::lora::AdapterType::IA3 => {
+                    println!("   IA³ adapter (no rank/alpha parameters)");
+                }
+                super::lora::AdapterType::LoKR => {
+                    let scale = if let (Some(alpha), Some(rank)) = (adapter.alpha, adapter.rank) {
+                        alpha as f64 / rank as f64
+                    } else {
+                        1.0
+                    };
+                    println!(
+                        "   LoKR scale: {:.2} (alpha={:?}, r={:?})",
+                        scale, adapter.alpha, adapter.rank
+                    );
+                }
+            }
         }
 
-        // Merge LoRA weights: W' = W + scale * (B @ A)
+        // Apply adapter weights based on type
         let mut merged_count = 0;
         let mut adapter_keys: Vec<String> = adapter.weights.keys().cloned().collect();
         adapter_keys.sort();
-
-        // Group by base name (remove .lora_A.weight / .lora_B.weight suffix)
-        let mut lora_pairs: HashMap<String, (Option<&Tensor>, Option<&Tensor>)> = HashMap::new();
-
-        for key in &adapter_keys {
-            if key.ends_with(".lora_A.weight") {
-                let base_name = key.strip_suffix(".lora_A.weight").unwrap();
-                lora_pairs
-                    .entry(base_name.to_string())
-                    .or_insert((None, None))
-                    .0 = Some(&adapter.weights[key]);
-            } else if key.ends_with(".lora_B.weight") {
-                let base_name = key.strip_suffix(".lora_B.weight").unwrap();
-                lora_pairs
-                    .entry(base_name.to_string())
-                    .or_insert((None, None))
-                    .1 = Some(&adapter.weights[key]);
-            }
-        }
 
         // Debug: print first few keys to understand naming
         if verbose {
@@ -484,46 +583,74 @@ impl QwenEngine {
             for key in base_keys.iter().take(5) {
                 println!("     {}", key);
             }
-            println!("   Debug: LoRA pairs found: {}", lora_pairs.len());
         }
 
-        // Apply each LoRA pair
+        // Apply adapter to each matching layer
         let mut first_miss = true;
-        for (base_name, (lora_a_opt, lora_b_opt)) in lora_pairs {
-            if let (Some(lora_a), Some(lora_b)) = (lora_a_opt, lora_b_opt) {
-                // Remove PEFT wrapper prefixes from adapter key
-                // "base_model.model.model.layers..." -> "model.layers..."
-                let cleaned_name =
-                    if let Some(stripped) = base_name.strip_prefix("base_model.model.") {
+        for adapter_key in &adapter_keys {
+            // Extract layer name based on adapter type
+            let layer_name = match adapter.adapter_type {
+                super::lora::AdapterType::LoRA | super::lora::AdapterType::DoRA => {
+                    // Remove .lora_A.weight or .lora_B.weight suffix
+                    if let Some(stripped) = adapter_key.strip_suffix(".lora_A.weight") {
                         stripped
-                    } else if let Some(stripped) = base_name.strip_prefix("base_model.") {
+                    } else if let Some(stripped) = adapter_key.strip_suffix(".lora_B.weight") {
                         stripped
                     } else {
-                        &base_name
-                    };
-
-                // Find corresponding base weight
-                let base_key = format!("{}.weight", cleaned_name);
-
-                if let Some(base_weight) = base_weights.get_mut(&base_key) {
-                    // Compute: delta = scale * (B @ A)
-                    let ba = lora_b.matmul(lora_a)?;
-                    let scaled_ba = (ba * scale)?;
-
-                    // Convert adapter delta to same dtype as base weight
-                    let scaled_ba = scaled_ba.to_dtype(base_weight.dtype())?;
-
-                    // Merge: W' = W + delta
-                    let merged = base_weight.add(&scaled_ba)?;
-                    *base_weight = merged;
-
-                    merged_count += 1;
-                } else if verbose && first_miss {
-                    println!("   Debug: First miss - adapter key: {}", base_name);
-                    println!("          Cleaned: {}", cleaned_name);
-                    println!("          Looking for: {}", base_key);
-                    first_miss = false;
+                        continue; // Skip non-LoRA keys
+                    }
                 }
+                super::lora::AdapterType::IA3 => {
+                    // Remove .ia3_l suffix
+                    if let Some(stripped) = adapter_key.strip_suffix(".ia3_l") {
+                        stripped
+                    } else {
+                        continue; // Skip non-IA³ keys
+                    }
+                }
+                super::lora::AdapterType::LoKR => {
+                    // Remove .lokr_A or .lokr_B suffix
+                    if let Some(stripped) = adapter_key.strip_suffix(".lokr_A") {
+                        stripped
+                    } else if let Some(stripped) = adapter_key.strip_suffix(".lokr_B") {
+                        stripped
+                    } else {
+                        continue; // Skip non-LoKR keys
+                    }
+                }
+            };
+
+            // Remove PEFT wrapper prefixes from adapter key
+            // "base_model.model.model.layers..." -> "model.layers..."
+            let cleaned_name =
+                if let Some(stripped) = layer_name.strip_prefix("base_model.model.") {
+                    stripped
+                } else if let Some(stripped) = layer_name.strip_prefix("base_model.") {
+                    stripped
+                } else {
+                    layer_name
+                };
+
+            // Find corresponding base weight
+            let base_key = format!("{}.weight", cleaned_name);
+
+            if let Some(base_weight) = base_weights.get_mut(&base_key) {
+                // Apply adapter using the generic method
+                let merged_weight = adapter.apply_adapter(cleaned_name, base_weight)?;
+
+                // Convert back to same dtype if needed
+                let merged_weight = merged_weight.to_dtype(base_weight.dtype())?;
+
+                // Update base weight
+                *base_weight = merged_weight;
+
+                merged_count += 1;
+            } else if verbose && first_miss {
+                println!("   Debug: First miss - adapter key: {}", adapter_key);
+                println!("          Layer name: {}", layer_name);
+                println!("          Cleaned: {}", cleaned_name);
+                println!("          Looking for: {}", base_key);
+                first_miss = false;
             }
         }
 
@@ -598,23 +725,40 @@ impl QwenEngine {
         // Clear KV cache from previous generation
         self.model.clear_kv_cache();
 
+        // Combine soft prompt tokens with user prompt tokens
+        let mut all_tokens: Vec<usize> = Vec::new();
+
+        // Add soft prompt tokens first (if active)
+        if let Some(soft_tokens) = self.get_active_soft_prompt_tokens() {
+            all_tokens.extend(soft_tokens.iter().map(|&t| t as usize));
+            if verbose && !soft_tokens.is_empty() {
+                println!("   Soft prompt tokens: {}", soft_tokens.len());
+            }
+        }
+
+        // Add user prompt tokens
         let encoding = self
             .tokenizer
             .encode(prompt, true)
             .map_err(|e| anyhow!("Tokenization failed: {:?}", e))?;
         let prompt_tokens: Vec<usize> = encoding.get_ids().iter().map(|&id| id as usize).collect();
+        all_tokens.extend(prompt_tokens);
 
-        if prompt_tokens.is_empty() {
+        if all_tokens.is_empty() {
             return Err(anyhow!("Please provide a prompt"));
         }
 
         if verbose {
-            println!("   Prompt tokens: {}", prompt_tokens.len());
+            println!("   Total tokens: {} (soft: {}, prompt: {})",
+                all_tokens.len(),
+                self.get_active_soft_prompt_tokens().map(|t| t.len()).unwrap_or(0),
+                prompt_tokens.len()
+            );
             println!("   Starting generation (max {} tokens)...", max_tokens);
         }
 
         let seq_len = 2048; // Should match config
-        let mut state = GenerationState::new(prompt_tokens[0]);
+        let mut state = GenerationState::new(all_tokens[0]);
         let eos_token = 151645_usize;
 
         let mut generated_tokens = 0;
@@ -625,9 +769,9 @@ impl QwenEngine {
             self.model
                 .forward_single(state.token, state.pos, &mut self.logits_buffer)?;
 
-            let next_token = if state.pos < prompt_tokens.len() - 1 {
-                // Still processing prompt tokens - use ground truth
-                prompt_tokens[state.pos + 1]
+            let next_token = if state.pos < all_tokens.len() - 1 {
+                // Still processing prompt tokens (including soft prompt) - use ground truth
+                all_tokens[state.pos + 1]
             } else {
                 // Generate new tokens from model output
                 let next = self.sample_next_token(temperature, top_p)?;

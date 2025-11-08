@@ -6,6 +6,23 @@ use std::collections::HashMap;
 use std::path::Path;
 use tempfile::TempDir;
 
+// Helper function to assert tensors are close
+fn assert_tensors_close(a: &Tensor, b: &Tensor, tolerance: f32) {
+    let a_vec = a.to_vec1::<f32>().unwrap();
+    let b_vec = b.to_vec1::<f32>().unwrap();
+
+    assert_eq!(a_vec.len(), b_vec.len(), "Tensor dimensions don't match");
+
+    for (i, (&a_val, &b_val)) in a_vec.iter().zip(b_vec.iter()).enumerate() {
+        let diff = (a_val - b_val).abs();
+        assert!(
+            diff <= tolerance,
+            "Tensors differ at index {}: {} vs {} (diff: {})",
+            i, a_val, b_val, diff
+        );
+    }
+}
+
 #[test]
 fn test_adapter_type_enum() {
     // Test that AdapterType variants exist
@@ -295,6 +312,135 @@ fn test_ia3_adapter_type() {
     // IA³ should work without rank/alpha
     assert_eq!(adapter.rank, None);
     assert_eq!(adapter.alpha, None);
+}
+
+#[test]
+fn test_lokr_adapter_type() {
+    let mut weights = HashMap::new();
+    let device = Device::Cpu;
+
+    // Create LoKR matrices (similar to LoRA but for Kronecker product)
+    let lokr_a_data = vec![1.0f32, 2.0, 3.0, 4.0]; // 2x2 matrix
+    let lokr_b_data = vec![5.0f32, 6.0]; // 2x1 matrix
+
+    let lokr_a = Tensor::from_vec(lokr_a_data, (2, 2), &device).unwrap();
+    let lokr_b = Tensor::from_vec(lokr_b_data, (2, 1), &device).unwrap();
+
+    weights.insert("layer.lokr_A".to_string(), lokr_a);
+    weights.insert("layer.lokr_B".to_string(), lokr_b);
+
+    let adapter = LoraAdapter {
+        adapter_type: AdapterType::LoKR,
+        rank: Some(2), // LoKR uses rank like LoRA
+        alpha: Some(4),
+        target_modules: vec!["layer".to_string()],
+        weights,
+    };
+
+    match adapter.adapter_type {
+        AdapterType::LoKR => assert!(true),
+        _ => assert!(false),
+    }
+
+    // LoKR should have rank/alpha
+    assert_eq!(adapter.rank, Some(2));
+    assert_eq!(adapter.alpha, Some(4));
+}
+
+#[test]
+fn test_apply_ia3_adapter() {
+    let mut weights = HashMap::new();
+    let device = Device::Cpu;
+
+    // Create base weight matrix [3, 4]
+    let base_data: Vec<f32> = (0..12).map(|i| i as f32).collect();
+    let base_weight = Tensor::from_vec(base_data, (3, 4), &device).unwrap();
+
+    // Create IA³ scaling vector [3] (matches output features)
+    let ia3_data = vec![2.0f32, 0.5, 3.0]; // Scale first row by 2x, second by 0.5x, third by 3x
+    let ia3_vector = Tensor::from_vec(ia3_data, (3,), &device).unwrap();
+
+    weights.insert("layer.ia3_l".to_string(), ia3_vector);
+
+    let adapter = LoraAdapter {
+        adapter_type: AdapterType::IA3,
+        rank: None,
+        alpha: None,
+        target_modules: vec!["layer".to_string()],
+        weights,
+    };
+
+    // Apply IA³
+    let result = adapter.apply_adapter("layer", &base_weight).unwrap();
+
+    // Check result dimensions
+    assert_eq!(result.dims(), vec![3, 4]);
+
+    // Expected: each row scaled by corresponding IA³ value
+    // Row 0: [0,1,2,3] * 2.0 = [0,2,4,6]
+    // Row 1: [4,5,6,7] * 0.5 = [2,2.5,3,3.5]
+    // Row 2: [8,9,10,11] * 3.0 = [24,27,30,33]
+    let expected_data = vec![
+        0.0, 2.0, 4.0, 6.0,      // Row 0 scaled by 2.0
+        2.0, 2.5, 3.0, 3.5,      // Row 1 scaled by 0.5
+        24.0, 27.0, 30.0, 33.0   // Row 2 scaled by 3.0
+    ];
+
+    let expected = Tensor::from_vec(expected_data, (3, 4), &device).unwrap();
+    assert_tensors_close(&result, &expected, 1e-6);
+}
+
+#[test]
+fn test_soft_prompt_loading() {
+    // Test loading and activating soft prompts
+    let mut engine = QwenEngine {
+        model: unsafe { std::mem::zeroed() }, // Mock model for testing
+        tokenizer: unsafe { std::mem::zeroed() }, // Mock tokenizer
+        device: Device::Cpu,
+        config: Qwen3Config {
+            hidden_size: 768,
+            num_hidden_layers: 12,
+            num_attention_heads: 12,
+            num_key_value_heads: 12,
+            head_dim: 64,
+            intermediate_size: 3072,
+            vocab_size: 151936,
+            max_position_embeddings: 131072,
+            rope_theta: 10000.0,
+        },
+        logits_buffer: vec![0.0; 151936],
+        soft_prompts: HashMap::new(),
+        active_soft_prompt: None,
+        base_weights: HashMap::new(),
+        current_adapter: None,
+    };
+
+    // Test loading a soft prompt
+    let prompt_text = "You are a helpful assistant.";
+    engine.load_soft_prompt("test_prompt", prompt_text).unwrap();
+
+    // Check that prompt was loaded
+    assert!(engine.soft_prompts.contains_key("test_prompt"));
+    assert!(engine.active_soft_prompt.is_none());
+
+    // Test activating the prompt
+    engine.activate_soft_prompt(Some("test_prompt"));
+    assert_eq!(engine.active_soft_prompt, Some("test_prompt".to_string()));
+
+    // Test getting active prompt tokens
+    let tokens = engine.get_active_soft_prompt_tokens();
+    assert!(tokens.is_some());
+    assert!(!tokens.unwrap().is_empty());
+
+    // Test deactivating
+    engine.activate_soft_prompt(None);
+    assert!(engine.active_soft_prompt.is_none());
+    assert!(engine.get_active_soft_prompt_tokens().is_none());
+
+    // Test getting available prompts
+    let available = engine.get_soft_prompts();
+    assert_eq!(available.len(), 1);
+    assert_eq!(available[0], "test_prompt");
 }
 
 #[test]

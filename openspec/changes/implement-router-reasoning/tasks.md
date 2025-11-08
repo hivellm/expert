@@ -6,7 +6,7 @@
 - [ ] 1.2 Implement format detection (JSON, XML, YAML)
 - [ ] 1.3 Implement technology detection (Neo4j, Python, Rust)
 - [ ] 1.4 Implement task classification (parsing, validation, etc.)
-- [ ] 1.5 Create keyword matching system
+- [x] 1.5 Create keyword matching system
 - [ ] 1.6 Benchmark heuristic speed (<1ms target)
 
 ## 2. Embedding-Based Search
@@ -20,7 +20,7 @@
 
 ## 3. Expert Scoring
 
-- [ ] 3.1 Implement scoring function
+- [x] 3.1 Implement scoring function
 - [ ] 3.2 Weight factors: semantic (40%), heuristic (25%), success rate (20%), VRAM (10%), popularity (5%)
 - [ ] 3.3 Filter incompatible experts
 - [ ] 3.4 Select top-10 experts
@@ -31,7 +31,7 @@
 - [ ] 4.1 Map task types to temperature ranges
 - [ ] 4.2 Map task types to max_tokens
 - [ ] 4.3 Set top-p, top-k defaults
-- [ ] 4.4 Allow user override
+- [x] 4.4 Allow user override
 - [ ] 4.5 Document tuning rules
 
 ## 5. Decision Caching
@@ -43,10 +43,10 @@
 
 ## 6. Integration
 
-- [ ] 6.1 Integrate router with inference runtime
+- [x] 6.1 Integrate router with inference runtime
 - [ ] 6.2 Add auto-selection API endpoint
-- [ ] 6.3 Add manual override option
-- [ ] 6.4 Test end-to-end
+- [x] 6.3 Add manual override option
+- [x] 6.4 Test end-to-end
 
 ## 7. Performance
 
@@ -57,7 +57,7 @@
 
 ## 8. Testing
 
-- [ ] 8.1 Test accuracy on diverse prompts
+- [x] 8.1 Test accuracy on diverse prompts
 - [ ] 8.2 Target >85% correct expert selection
 - [ ] 8.3 Test edge cases
 - [ ] 8.4 Test cache hit rates

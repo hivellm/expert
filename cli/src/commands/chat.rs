@@ -349,6 +349,22 @@ pub fn chat(
             .map_err(|e| crate::error::Error::Training(format!("Failed to load model: {}", e)))?
     };
 
+    // Load soft prompts from experts
+    if !loaded_experts.is_empty() {
+        if !is_oneshot || debug {
+            println!();
+            println!("  {} Loading soft prompts...", "📝".bright_blue());
+        }
+
+        for expert in &loaded_experts {
+            if let Err(e) = engine.load_soft_prompts_from_manifest(&expert.manifest, &expert.adapter_path) {
+                if !is_oneshot || debug {
+                    println!("    {} Failed to load soft prompts for {}: {}", "⚠️".bright_yellow(), expert.name, e);
+                }
+            }
+        }
+    }
+
     // Skip "Chat Ready" message in one-shot mode without debug
     if !is_oneshot || debug {
         println!();
@@ -364,6 +380,8 @@ pub fn chat(
         if !loaded_experts.is_empty() {
             println!("{}", "Commands:".bright_yellow());
             println!("  {} - Switch to expert", "/expert <name>".bright_white());
+            println!("  {} - Activate soft prompt", "/soft <name> or /soft none".bright_white());
+            println!("  {} - List soft prompts", "/soft list".bright_white());
             println!("  {} - List loaded experts", "/list".bright_white());
             println!("  {} - Exit chat", "/exit or /quit".bright_white());
         } else {
@@ -616,6 +634,43 @@ pub fn chat(
             }
             println!();
             continue;
+        }
+
+        if input.starts_with("/soft ") {
+            let soft_cmd = input.trim_start_matches("/soft ").trim();
+
+            if soft_cmd == "list" {
+                println!();
+                println!("Available soft prompts:");
+                let soft_prompts = engine.get_soft_prompts();
+                if soft_prompts.is_empty() {
+                    println!("  None loaded");
+                } else {
+                    for name in soft_prompts {
+                        let active = if engine.get_active_soft_prompt_tokens().is_some()
+                            && engine.active_soft_prompt.as_ref() == Some(name) { "→" } else { " " };
+                        println!("  {} {}", active, name.bright_cyan());
+                    }
+                }
+                println!();
+                continue;
+            } else if soft_cmd == "none" {
+                engine.activate_soft_prompt(None);
+                println!("{} Soft prompt deactivated", "✓".bright_green());
+                println!();
+                continue;
+            } else {
+                // Try to activate the specified soft prompt
+                let soft_prompts = engine.get_soft_prompts();
+                if soft_prompts.contains(&soft_cmd.to_string()) {
+                    engine.activate_soft_prompt(Some(soft_cmd));
+                    println!("{} Activated soft prompt: {}", "✓".bright_green(), soft_cmd.bright_cyan());
+                } else {
+                    println!("{} Soft prompt not found: {}", "✗".bright_red(), soft_cmd);
+                }
+                println!();
+                continue;
+            }
         }
 
         // Use router to select best expert or use explicitly selected expert

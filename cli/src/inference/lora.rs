@@ -11,6 +11,7 @@ pub enum AdapterType {
     LoRA,
     DoRA,
     IA3,
+    LoKR,
 }
 
 #[derive(Debug, Clone)]
@@ -131,6 +132,108 @@ impl LoraAdapter {
         let updated_weight = base_weight.add(&scaled_ba)?;
 
         Ok(updated_weight)
+    }
+
+    /// Apply IA³ to a layer's weight tensor
+    /// IA³ multiplies activations by learned scaling vectors
+    /// W' = W * scaling_vector (reshaped to match weight dimensions)
+    pub fn apply_ia3(&self, layer_name: &str, base_weight: &Tensor) -> Result<Tensor> {
+        let ia3_key = format!("{}.ia3_l", layer_name);
+
+        // Check if this layer has IA³ weights
+        if !self.weights.contains_key(&ia3_key) {
+            // No IA³ for this layer, return original
+            return Ok(base_weight.clone());
+        }
+
+        let ia3_vector = &self.weights[&ia3_key];
+
+        // IA³ scaling vector needs to be reshaped to match weight dimensions
+        // For linear layers: [out_features] -> [out_features, in_features]
+        let (out_features, in_features) = base_weight.dims2()?;
+
+        // Reshape IA³ vector to broadcast with weight matrix
+        let scaling_matrix = if ia3_vector.dims1()? == out_features {
+            // Vector matches output features - expand to [out_features, 1] for broadcasting
+            ia3_vector.unsqueeze(1)? // [out_features] -> [out_features, 1]
+        } else if ia3_vector.dims1()? == in_features {
+            // Vector matches input features - expand to [1, in_features] for broadcasting
+            ia3_vector.unsqueeze(0)? // [in_features] -> [1, in_features]
+        } else {
+            return Err(anyhow!(
+                "IA³ vector for layer {} has wrong dimensions. Expected {} or {}, got {}",
+                layer_name, out_features, in_features, ia3_vector.dims1()?
+            ));
+        };
+
+        // Apply scaling: element-wise multiplication
+        let scaled_weight = base_weight.mul(&scaling_matrix)?;
+
+        Ok(scaled_weight)
+    }
+
+    /// Apply LoKR to a layer's weight tensor
+    /// LoKR uses Kronecker products for efficient low-rank adaptation
+    pub fn apply_lokr(&self, layer_name: &str, base_weight: &Tensor) -> Result<Tensor> {
+        let lokr_a_key = format!("{}.lokr_A", layer_name);
+        let lokr_b_key = format!("{}.lokr_B", layer_name);
+
+        // Check if this layer has LoKR weights
+        if !self.weights.contains_key(&lokr_a_key) || !self.weights.contains_key(&lokr_b_key) {
+            // No LoKR for this layer, return original
+            return Ok(base_weight.clone());
+        }
+
+        let lokr_a = &self.weights[&lokr_a_key];
+        let lokr_b = &self.weights[&lokr_b_key];
+
+        // LoKR uses Kronecker product: W' = W + kron(A, B) * scale
+        // For efficiency, we compute this as: W + (A ⊗ B) where ⊗ is Kronecker product
+        let kron_product = Self::kronecker_product(lokr_a, lokr_b)?;
+
+        // Scale by alpha/r (same as LoRA)
+        let scale = if let (Some(alpha), Some(rank)) = (self.alpha, self.rank) {
+            alpha as f64 / rank as f64
+        } else {
+            1.0
+        };
+
+        let scaled_kron = kron_product.affine(scale, 0.0)?;
+
+        // Add to base weight
+        let updated_weight = base_weight.add(&scaled_kron)?;
+
+        Ok(updated_weight)
+    }
+
+    /// Compute Kronecker product of two matrices
+    fn kronecker_product(a: &Tensor, b: &Tensor) -> Result<Tensor> {
+        let (a_rows, a_cols) = a.dims2()?;
+        let (b_rows, b_cols) = b.dims2()?;
+
+        // Reshape A to [a_rows, 1, a_cols, 1]
+        let a_expanded = a.unsqueeze(1)?.unsqueeze(3)?;
+
+        // Reshape B to [1, b_rows, 1, b_cols]
+        let b_expanded = b.unsqueeze(0)?.unsqueeze(2)?;
+
+        // Element-wise multiplication gives Kronecker product
+        let kron = a_expanded.mul(&b_expanded)?;
+
+        // Reshape to final dimensions [a_rows * b_rows, a_cols * b_cols]
+        let result = kron.reshape((a_rows * b_rows, a_cols * b_cols))?;
+
+        Ok(result)
+    }
+
+    /// Generic apply method that dispatches to the correct adapter type
+    pub fn apply_adapter(&self, layer_name: &str, base_weight: &Tensor) -> Result<Tensor> {
+        match self.adapter_type {
+            AdapterType::LoRA => self.apply_lora(layer_name, base_weight),
+            AdapterType::DoRA => self.apply_lora(layer_name, base_weight), // DoRA uses same logic as LoRA for now
+            AdapterType::IA3 => self.apply_ia3(layer_name, base_weight),
+            AdapterType::LoKR => self.apply_lokr(layer_name, base_weight),
+        }
     }
 
     /// Get adapter size in bytes
