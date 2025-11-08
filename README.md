@@ -122,8 +122,8 @@ Experts are **never merged** into the base model. They exist as runtime-composab
 
 ### Document Classification
 ```
-Input: "Classify this JSON document about Neo4j schema"
-Router selects: [json-parser.expert, english.expert, neo4j-schema.expert, classifier.expert]
+Input: "Classify this JSON document describing a property graph schema"
+Router selects: [json-structure.expert, language-generalist.expert, graph-domain.expert, classifier.expert]
 → Fast, accurate classification with ~1GB total VRAM
 ```
 
@@ -137,7 +137,7 @@ Router selects: [portuguese.expert, english.expert, technical-writing.expert]
 ### Code Generation
 ```
 Input: "Generate Rust async handler for HTTP endpoints"
-Router selects: [rust.expert, async-patterns.expert, http-api.expert]
+Router selects: [systems-language.expert, async-patterns.expert, http-api.expert]
 → Domain-specific code without full ChatGPT
 ```
 
@@ -233,23 +233,23 @@ cargo build --release
 # Requires Visual Studio 2022 + CUDA Toolkit
 .\scripts\build-cuda.ps1
 
-# Install expert from package
-.\target\release\expert-cli.exe install experts\expert-sql\expert-sql-qwen3-0-6b.v0.2.0.expert
-.\target\release\expert-cli.exe install experts\expert-neo4j\expert-neo4j-qwen3-0-6b.v0.1.0.expert
+# Install experts from packages
+.\target\release\expert-cli.exe install experts\<domain-expert>\<package-name>.expert
+.\target\release\expert-cli.exe install experts\<analytics-expert>\<package-name>.expert
 
 # Use expert in one-shot mode (clean output)
-.\target\release\expert-cli.exe chat --experts sql --prompt "Find all users older than 25. Schema: users(id,name,age)" --max-tokens 50 --device cuda
+.\target\release\expert-cli.exe chat --experts domain --prompt "Find all users older than 25. Schema: users(id,name,age)" --max-tokens 50 --device cuda
 
 # Router automatically uses base model for generic queries
-.\target\release\expert-cli.exe chat --experts sql --prompt "What is SQL?" --max-tokens 30 --device cuda
-# Output: "SQL is a programming language for managing databases..."
+.\target\release\expert-cli.exe chat --experts domain --prompt "Explain how structured query languages work" --max-tokens 30 --device cuda
+# Output: "Structured query languages manage and manipulate relational data..."
 
 # Router automatically uses expert for domain-specific queries
-.\target\release\expert-cli.exe chat --experts sql --prompt "SELECT name FROM users WHERE age > 30" --max-tokens 30 --device cuda
+.\target\release\expert-cli.exe chat --experts domain --prompt "Generate a query that selects names where age > 30" --max-tokens 30 --device cuda
 # Output: "SELECT name FROM users WHERE age > 30;"
 
 # Use expert with debug mode (shows routing decision)
-.\target\release\expert-cli.exe chat --experts neo4j --prompt "Find actors" --max-tokens 50 --device cuda --debug
+.\target\release\expert-cli.exe chat --experts graph --prompt "Find actors" --max-tokens 50 --device cuda --debug
 
 # List installed experts
 .\target\release\expert-cli.exe list
@@ -274,8 +274,8 @@ cd expert-system/expert
 cd cli
 cargo build --release
 
-# Train first expert (e.g., JSON parser)
-cd ../experts/expert-json-parser
+# Train first expert (e.g., dataset-focused adapter)
+cd ../experts/<expert-directory>
 expert-cli train \
   --manifest manifest.json \
   --dataset datasets/json_8k.jsonl \
@@ -284,8 +284,8 @@ expert-cli train \
 ```
 
 **🚀 Ready for more?** See **[QUICKSTART.md](QUICKSTART.md)** for a practical 4-week plan to:
-1. Train your first 6 experts (English, JSON, Neo4j, Python, Rust, Classifier)
-2. Build a simple Python CLI to test them
+1. Train an initial wave of experts spanning language, data, graph, and systems domains
+2. Build a simple Python CLI to test the full routing pipeline
 3. Benchmark performance and validate the architecture
 4. **Cost**: $15-25 (synthetic data + GPU time)
 
@@ -303,9 +303,9 @@ curl -sSL https://expert.hivellm.dev/install.sh | bash
 expert-cli model download qwen3-0.6b-int4
 
 # Install some experts from marketplace
-expert-cli expert install english-basic@1.0.0
-expert-cli expert install json-parser@2.1.3
-expert-cli expert install neo4j-schema@1.5.0
+expert-cli expert install <language-expert>@<version>
+expert-cli expert install <data-expert>@<version>
+expert-cli expert install <graph-expert>@<version>
 ```
 
 ### Basic Usage (Future)
@@ -320,7 +320,7 @@ const engine = new ExpertEngine({
 
 // Automatic expert selection
 const result = await engine.infer({
-  prompt: "Parse this JSON and extract Neo4j node types",
+  prompt: "Parse this JSON and extract graph node types",
   body: jsonDocument
 });
 
@@ -378,10 +378,10 @@ Generate training datasets using premium LLMs (DeepSeek, Claude, GPT-4) instead 
 
 ```bash
 # Install from any Git repository
-expert-cli install https://github.com/hivellm/expert-json-parser
+expert-cli install https://github.com/hivellm/<expert-repository>
 
 # Or from your own repo
-expert-cli install https://github.com/yourname/my-expert
+expert-cli install https://github.com/yourname/<custom-expert>
 ```
 
 ### 🔒 Decentralized Marketplace
@@ -398,12 +398,12 @@ Each expert focuses on narrow domain (JSON parsing, language, tech stack) for hi
 
 ```powershell
 # Generic query → Base model (no expert)
-expert-cli chat --experts neo4j --prompt "What is the capital of France?"
+expert-cli chat --experts graph --prompt "What is the capital of France?"
 → Output: "Paris"  # Uses base model knowledge
 
 # Specialized query → Expert (automatic)
-expert-cli chat --experts neo4j --prompt "Find all people older than 30"
-→ Output: "MATCH (p:Person) WHERE p.age > 30 RETURN p"  # Uses Neo4j expert
+expert-cli chat --experts graph --prompt "Find all people older than 30"
+→ Output: "MATCH (p:Person) WHERE p.age > 30 RETURN p"  # Uses graph expert
 ```
 
 **How it works:**
@@ -452,25 +452,24 @@ expert-cli chat --experts neo4j --prompt "Find all people older than 30"
 - ✅ Training optimizations (LLaMA-Factory/Unsloth best practices)
 - ✅ Dataset preprocessing pipeline (validation, deduplication, SQL fixing)
 - ✅ Synthetic data generation pipeline
-- ✅ **Expert-SQL v0.2.0** trained and packaged (99k examples, 12.4/10 quality)
-- ✅ **Expert-Neo4j v0.1.0** trained and packaged (29k examples, 9.13/10 quality)
-- ✅ **Rust inference runtime** with Candle + CUDA support
-- ✅ **LoRA/DoRA adapter merging** in Rust (168 weights per expert)
-- ✅ **Expert packaging** (.expert tar.gz format)
-- ✅ **Expert installation** from packages
-- ✅ **Registry system** for tracking installed experts
-- ✅ **One-shot mode** (--prompt) for scripting
-- ✅ **Comprehensive test suite** (5 automated test scripts)
+- ✅ First wave of domain experts packaged (relational queries, graph analytics) with benchmark coverage
+- ✅ Rust inference runtime with Candle + CUDA support
+- ✅ LoRA/DoRA adapter merging in Rust (168 weights per expert)
+- ✅ Expert packaging (.expert tar.gz format)
+- ✅ Expert installation from packages
+- ✅ Registry system for tracking installed experts
+- ✅ One-shot mode (--prompt) for scripting
+- ✅ Comprehensive test suite (5 automated test scripts)
 
-**Validated Experts**:
-| Expert | Version | Quality | Status |
-|--------|---------|---------|--------|
-| expert-sql | v0.2.0 | 12.4/10 | ✅ Production ready |
-| expert-neo4j | v0.1.0 | 9.13/10 | ✅ Production ready |
-| expert-json | v0.1.0 | TBD | 🔄 Training |
+**Validated Expert Portfolio**:
+| Domain Focus | Highlight | Status |
+|--------------|-----------|--------|
+| Relational querying | Production-grade SQL generation benchmarks | ✅ Production ready |
+| Graph reasoning | Multi-hop pattern matching benchmarks | ✅ Production ready |
+| JSON tooling | Schema generation and repair expansion | 🔄 In training |
 
 **In Progress**:
-- 🔄 Training remaining experts (JSON, Python, Rust, TypeScript)
+- 🔄 Expanding expert coverage across data processing, programming, and reasoning domains
 - 🔄 Multi-expert routing and composition
 - 🔄 Performance optimization (caching merged weights)
 

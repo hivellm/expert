@@ -163,6 +163,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **test-comprehensive.ps1**: Full feature testing (8 scenarios)
 - **Rust integration tests**: `cli/tests/chat_test.rs`
 
+### Changed - 2025-11-08
+
+#### Documentation
+- README reframed to highlight the broader expert ecosystem instead of emphasizing a single domain expert.
+- README examples and commands converted to neutral placeholders to avoid focusing on individual expert packages.
+
 ### Changed - 2025-11-06
 
 #### CLI Organization

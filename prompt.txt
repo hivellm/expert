@@ -1,5 +1,0 @@
-Dialect:
-cypher
-Schema:
-Node
-properties:
