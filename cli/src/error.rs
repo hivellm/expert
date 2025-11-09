@@ -43,6 +43,9 @@ pub enum Error {
     #[error("Signing error: {0}")]
     Signing(String),
 
+    #[error("Regex error: {0}")]
+    Regex(#[from] regex::Error),
+
     #[error("{0}")]
     Other(String),
 }

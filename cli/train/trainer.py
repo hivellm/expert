@@ -37,6 +37,8 @@ except ImportError:
 
 # Standalone formatting function for SFTTrainer (must be at module level for pickle)
 # This avoids capturing non-serializable objects from Unsloth when using multiprocessing
+# Note: For Windows, conversion happens during pre-tokenization. For non-Windows,
+# the tokenizer's chat_template should handle the conversion automatically.
 def _format_text_for_sft(examples):
     """Extract text field from examples - standalone function for multiprocessing compatibility"""
     if isinstance(examples, dict):
@@ -389,11 +391,59 @@ def train_expert(config_dict: dict) -> None:
         if platform.system() == "Windows" and not isinstance(train_dataset, IterableDataset):
             print(f"   [WINDOWS] Pre-tokenizing dataset to avoid multiprocessing pickle issues...")
             
+            # Convert ChatML format to Qwen3 format using apply_chat_template
+            # Dataset uses <|system|>/<|end|> but Qwen3 expects <|im_start|>/<|im_end|>
+            import re
+            
+            def convert_chatml_to_messages(text):
+                """Convert ChatML format (<|system|>, <|user|>, <|assistant|>, <|end|>) to messages list"""
+                messages = []
+                
+                # Extract system message
+                system_match = re.search(r'<\|system\|>\n(.*?)<\|end\|>', text, re.DOTALL)
+                if system_match:
+                    messages.append({'role': 'system', 'content': system_match.group(1).strip()})
+                
+                # Extract user message
+                user_match = re.search(r'<\|user\|>\n(.*?)<\|end\|>', text, re.DOTALL)
+                if user_match:
+                    messages.append({'role': 'user', 'content': user_match.group(1).strip()})
+                
+                # Extract assistant message (for training, include it)
+                assistant_match = re.search(r'<\|assistant\|>\n(.*?)<\|end\|>', text, re.DOTALL)
+                if assistant_match:
+                    messages.append({'role': 'assistant', 'content': assistant_match.group(1).strip()})
+                
+                return messages
+            
             # Tokenize function (standalone for pickle)
             def tokenize_examples(examples):
-                """Tokenize examples - standalone function for Windows compatibility"""
+                """Tokenize examples - converts ChatML to Qwen3 format and tokenizes"""
+                texts = examples["text"]
+                converted_texts = []
+                
+                for text in texts:
+                    # Check if already in Qwen3 format (has im_start)
+                    if "<|im_start|>" in text:
+                        # Already in correct format
+                        converted_texts.append(text)
+                    else:
+                        # Convert from ChatML to Qwen3 format
+                        messages = convert_chatml_to_messages(text)
+                        if messages:
+                            # Apply chat template to get Qwen3 format (<|im_start|>/<|im_end|>)
+                            formatted = tokenizer.apply_chat_template(
+                                messages,
+                                tokenize=False,
+                                add_generation_prompt=False  # For training, include assistant response
+                            )
+                            converted_texts.append(formatted)
+                        else:
+                            # Fallback: use as-is
+                            converted_texts.append(text)
+                
                 return tokenizer(
-                    examples["text"],
+                    converted_texts,
                     truncation=True,
                     max_length=config.max_seq_length or 2048,
                     padding=False,

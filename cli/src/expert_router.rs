@@ -9,6 +9,7 @@ pub struct LoadedExpert {
     pub name: String,
     pub manifest: Manifest,
     pub adapter_path: PathBuf,
+    pub manifest_path: PathBuf,
 }
 
 pub struct ExpertRouter {

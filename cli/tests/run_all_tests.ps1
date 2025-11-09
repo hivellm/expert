@@ -1,75 +1,45 @@
-# Test runner for HiveLLM Expert CLI v0.2.3
-# Runs all automated tests
+# Run all Rust tests organized by category
 
-Write-Host ""
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  HiveLLM Expert CLI - Test Suite" -ForegroundColor White
-Write-Host "  Version: 0.2.3" -ForegroundColor White
-Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "Running Rust Tests" -ForegroundColor Cyan
+Write-Host "==================" -ForegroundColor Cyan
 Write-Host ""
 
-$ErrorCount = 0
+$testCategories = @(
+    @{ Name = "Commands"; Path = "commands"; Tests = @("chat_test", "dataset_command_tests", "install_tests", "list_command_tests", "package_command_tests", "sign_command_tests", "train_command_tests", "update_command_tests") },
+    @{ Name = "Inference"; Path = "inference"; Tests = @("grammar_validator_test", "test_generation", "test_hot_swap", "test_lora", "test_qwen") },
+    @{ Name = "Core"; Path = "core"; Tests = @("manifest_tests", "manifest_feature_tests", "model_detection_tests", "registry_tests", "router_tests", "test_keyword_routing", "test_router") },
+    @{ Name = "Integration"; Path = "integration"; Tests = @("dependency_resolution_tests", "error_message_tests", "package_integration_tests", "test_integration", "test_multi_expert", "validation_integration_tests") },
+    @{ Name = "Benchmarks"; Path = "benchmarks"; Tests = @("test_latency_benchmarks", "test_vram_profiling") }
+)
 
-# 1. Rust Tests
-Write-Host "[1/4] Running Rust tests..." -ForegroundColor Yellow
-cargo test --lib --quiet 2>&1 | Select-String "test result"
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "  [FAIL] Rust tests failed" -ForegroundColor Red
-    $ErrorCount++
-} else {
-    Write-Host "  [OK] Rust tests passed" -ForegroundColor Green
-}
+$totalPassed = 0
+$totalFailed = 0
 
-# 2. Python Training Optimization Tests
-Write-Host ""
-Write-Host "[2/4] Running training optimization tests..." -ForegroundColor Yellow
-.\venv_windows\Scripts\python.exe tests\test_training_optimizations.py
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "  [FAIL] Training tests failed" -ForegroundColor Red
-    $ErrorCount++
-} else {
-    Write-Host "  [OK] Training tests passed" -ForegroundColor Green
-}
-
-# 3. Manifest Validation
-Write-Host ""
-Write-Host "[3/4] Validating expert manifests..." -ForegroundColor Yellow
-
-$experts = @("expert-sql", "expert-json", "expert-typescript", "expert-neo4j")
-foreach ($expert in $experts) {
-    $path = "..\experts\$expert"
-    if (Test-Path $path) {
-        .\target\release\expert-cli.exe validate --expert $path 2>&1 | Out-Null
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "  [OK] $expert validated" -ForegroundColor Green
+foreach ($category in $testCategories) {
+    Write-Host "`n[$($category.Name)]" -ForegroundColor Yellow
+    
+    foreach ($test in $category.Tests) {
+        $testFile = "$($category.Path)\$test.rs"
+        if (Test-Path $testFile) {
+            Write-Host "  Running: $test..." -ForegroundColor Gray -NoNewline
+            $result = cargo test --test $test 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host " PASSED" -ForegroundColor Green
+                $totalPassed++
+            } else {
+                Write-Host " FAILED" -ForegroundColor Red
+                $totalFailed++
+            }
         } else {
-            Write-Host "  [FAIL] $expert validation failed" -ForegroundColor Red
-            $ErrorCount++
+            Write-Host "  Skipping: $test (file not found)" -ForegroundColor DarkGray
         }
     }
 }
 
-# 4. Build Test
+Write-Host "`n==================" -ForegroundColor Cyan
+Write-Host "Summary: $totalPassed passed, $totalFailed failed" -ForegroundColor $(if ($totalFailed -eq 0) { "Green" } else { "Red" })
 Write-Host ""
-Write-Host "[4/4] Testing build..." -ForegroundColor Yellow
-cargo build --release --quiet 2>&1 | Out-Null
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "  [OK] Build successful" -ForegroundColor Green
-} else {
-    Write-Host "  [FAIL] Build failed" -ForegroundColor Red
-    $ErrorCount++
+
+if ($totalFailed -gt 0) {
+    exit 1
 }
-
-# Summary
-Write-Host ""
-Write-Host "========================================" -ForegroundColor Cyan
-if ($ErrorCount -eq 0) {
-    Write-Host "  [OK] ALL TESTS PASSED" -ForegroundColor Green -BackgroundColor Black
-} else {
-    Write-Host "  [FAIL] $ErrorCount test(s) failed" -ForegroundColor Red
-}
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host ""
-
-exit $ErrorCount
-

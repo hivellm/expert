@@ -319,7 +319,8 @@ mod tests {
         let mut cache = PagedKVCache::new(config, device).unwrap();
 
         let page_id = cache.allocate_page(1).unwrap();
-        assert_eq!(page_id, 0);
+        // pop() removes from the end, so first page_id will be max_pages - 1
+        assert_eq!(page_id, cache.config.max_pages - 1);
         assert_eq!(cache.free_pages.len(), 511);
     }
 

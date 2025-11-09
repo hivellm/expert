@@ -10,6 +10,8 @@ CRITICAL RULES:
    - Coverage check
 4. Update docs/ when implementing features
 5. Follow strict documentation structure
+6. **ALWAYS use PowerShell with cli/venv_windows virtual environment when executing Python commands that require GPU/CUDA** - WSL does not support CUDA, so PowerShell is required for GPU operations
+7. **ALWAYS use PowerShell with cli/build-cuda.ps1 script when building the Rust CLI** - Use `.\cli\build-cuda.ps1` for building the expert-cli binary
 
 Language-specific rules are in @AGENTS.md.
 Module-specific patterns are in @AGENTS.md.

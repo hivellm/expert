@@ -11,18 +11,65 @@ use std::path::{Path, PathBuf};
 use tokenizers::Tokenizer;
 
 use super::qwen3_model::{Qwen3Config as ModelConfig, Qwen3Model};
+use super::grammar_validator::GrammarValidator;
+
+/// Clean reasoning/thinking text from output
+/// Removes <think>, <think> blocks and extracts only the final output
+fn clean_reasoning_text(text: &str) -> String {
+    use regex::Regex;
+    
+    let mut cleaned = text.to_string();
+    
+    // Remove <think> or <think> blocks
+    let think_pattern = Regex::new(r"(?i)<(?:think|redacted_reasoning)>.*?</(?:think|redacted_reasoning)>").unwrap();
+    cleaned = think_pattern.replace_all(&cleaned, "").to_string();
+    
+    // Try to extract Cypher/SQL/JSON query (starts with MATCH, CREATE, SELECT, {, etc.)
+    let cypher_pattern = Regex::new(r"(?i)(MATCH|CREATE|MERGE|RETURN|WITH|SELECT|INSERT|UPDATE|DELETE|WITH|UNWIND).*?$").unwrap();
+    if let Some(mat) = cypher_pattern.find(&cleaned) {
+        let query = mat.as_str();
+        // Stop at common reasoning prefixes
+        let stop_pattern = Regex::new(r"(?i)\n\n(Okay|Let me|I need|Wait|Hmm|So|First|The user|Looking at)").unwrap();
+        if let Some(stop_match) = stop_pattern.find(query) {
+            return query[..stop_match.start()].trim().to_string();
+        }
+        return query.trim().to_string();
+    }
+    
+    // Try to extract JSON (starts with {)
+    if cleaned.trim().starts_with('{') {
+        let json_pattern = Regex::new(r"\{.*\}").unwrap();
+        if let Some(mat) = json_pattern.find(&cleaned) {
+            return mat.as_str().trim().to_string();
+        }
+    }
+    
+    // Remove common reasoning prefixes
+    let prefix_pattern = Regex::new(r"(?i)^(Okay|Let me|I need|Wait|Hmm|So|First|The user|Looking at).*?\n").unwrap();
+    cleaned = prefix_pattern.replace_all(&cleaned, "").to_string();
+    
+    cleaned.trim().to_string()
+}
 
 /// Clean ChatML artifacts from generated text
 /// Removes everything after <|end|> or <|endoftext|> tokens
-fn clean_chatml_output(text: &str) -> String {
-    text.split("<|end|>")
+/// Optionally removes reasoning text if show_reasoning is false
+fn clean_chatml_output(text: &str, show_reasoning: bool) -> String {
+    let mut cleaned = text.split("<|end|>")
         .next()
         .unwrap_or(text)
         .split("<|endoftext|>")
         .next()
         .unwrap_or(text)
         .trim()
-        .to_string()
+        .to_string();
+    
+    // Remove reasoning text by default (unless show_reasoning is true)
+    if !show_reasoning {
+        cleaned = clean_reasoning_text(&cleaned);
+    }
+    
+    cleaned
 }
 
 /// State for autoregressive generation
@@ -59,6 +106,8 @@ pub struct QwenEngine {
     // Hot-swap support
     base_weights: HashMap<String, Tensor>, // original model weights
     current_adapter: Option<String>,       // currently loaded adapter name
+    // Grammar validation support
+    grammar_validator: Option<Box<dyn GrammarValidator>>,
 }
 
 #[derive(Debug, Clone)]
@@ -318,6 +367,7 @@ impl QwenEngine {
             active_soft_prompt: None,
             base_weights: HashMap::new(),
             current_adapter: None,
+            grammar_validator: None,
         })
     }
 
@@ -415,6 +465,7 @@ impl QwenEngine {
             active_soft_prompt: None,
             base_weights: HashMap::new(),
             current_adapter: None,
+            grammar_validator: None,
         })
     }
 
@@ -453,6 +504,18 @@ impl QwenEngine {
     /// Get list of available soft prompt names
     pub fn get_soft_prompts(&self) -> Vec<String> {
         self.soft_prompts.keys().cloned().collect()
+    }
+    
+    /// Set grammar validator for query-only output validation
+    pub fn set_grammar_validator(&mut self, validator: Option<Box<dyn GrammarValidator>>) {
+        self.grammar_validator = validator;
+    }
+    
+    /// Load grammar validator from file path
+    pub fn load_grammar_validator(&mut self, grammar_file: &Path) -> Result<()> {
+        use super::grammar_validator::load_grammar_validator;
+        self.grammar_validator = Some(load_grammar_validator(grammar_file)?);
+        Ok(())
     }
 
     /// Save current model weights as base weights (for hot-swap)
@@ -732,8 +795,9 @@ impl QwenEngine {
         max_tokens: usize,
         temperature: f64,
         top_p: Option<f64>,
+        show_reasoning: bool,
     ) -> Result<String> {
-        self.generate_verbose(prompt, max_tokens, temperature, top_p, true)
+        self.generate_verbose(prompt, max_tokens, temperature, top_p, true, show_reasoning)
     }
 
     /// Generate text with verbose control
@@ -744,6 +808,7 @@ impl QwenEngine {
         temperature: f64,
         top_p: Option<f64>,
         verbose: bool,
+        show_reasoning: bool,
     ) -> Result<String> {
         // Clear KV cache from previous generation
         self.model.clear_kv_cache();
@@ -838,7 +903,29 @@ impl QwenEngine {
             .map_err(|e| anyhow!("Final decode failed: {:?}", e))?;
 
         // Clean ChatML artifacts
-        Ok(clean_chatml_output(&generated_text))
+        let mut cleaned = clean_chatml_output(&generated_text, show_reasoning);
+        
+        // Apply grammar validation if available
+        if let Some(ref validator) = self.grammar_validator {
+            match validator.extract_query(&cleaned) {
+                Ok(extracted) => {
+                    cleaned = extracted;
+                    // Validate the extracted query
+                    if let Ok(is_valid) = validator.validate(&cleaned) {
+                        if !is_valid && verbose {
+                            eprintln!("⚠️  Warning: Generated output failed grammar validation");
+                        }
+                    }
+                }
+                Err(e) => {
+                    if verbose {
+                        eprintln!("⚠️  Warning: Failed to extract query: {:?}", e);
+                    }
+                }
+            }
+        }
+        
+        Ok(cleaned)
     }
 
     fn sample_next_token(&self, temperature: f64, top_p: Option<f64>) -> Result<usize> {

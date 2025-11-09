@@ -125,6 +125,7 @@ pub fn chat(
     top_p_override: Option<f64>,
     top_k_override: Option<usize>,
     max_tokens_override: Option<usize>,
+    show_reasoning: bool,
     app_config: &AppConfig,
 ) -> Result<()> {
     // One-shot mode: if prompt is provided, skip banner unless debug is enabled
@@ -303,6 +304,7 @@ pub fn chat(
                 name: pretty_label.clone(),
                 manifest,
                 adapter_path,
+                manifest_path: manifest_path.clone(),
             });
         }
 
@@ -453,6 +455,47 @@ pub fn chat(
     } else {
         None
     };
+    
+    // Load grammar file from first expert if available (completely generic - works with any GBNF)
+    let grammar_file_path = if !loaded_experts.is_empty() {
+        let expert_dir = loaded_experts[0].manifest_path.parent().unwrap_or(&std::path::Path::new(""));
+        
+        // Priority 1: grammar_file from manifest decoding config
+        if let Some(ref decoding) = decoding_defaults {
+            if let Some(ref grammar_file) = decoding.grammar_file {
+                let grammar_path = expert_dir.join(grammar_file);
+                if grammar_path.exists() {
+                    Some(grammar_path)
+                } else {
+                    // Fallback to grammar.gbnf
+                    let fallback_path = expert_dir.join("grammar.gbnf");
+                    if fallback_path.exists() {
+                        Some(fallback_path)
+                    } else {
+                        None
+                    }
+                }
+            } else {
+                // Try grammar.gbnf in expert root
+                let fallback_path = expert_dir.join("grammar.gbnf");
+                if fallback_path.exists() {
+                    Some(fallback_path)
+                } else {
+                    None
+                }
+            }
+        } else {
+            // Try grammar.gbnf in expert root
+            let fallback_path = expert_dir.join("grammar.gbnf");
+            if fallback_path.exists() {
+                Some(fallback_path)
+            } else {
+                None
+            }
+        }
+    } else {
+        None
+    };
 
     // Build generation config with 3-level priority:
     // 1. CLI overrides (highest priority)
@@ -467,6 +510,35 @@ pub fn chat(
     let final_top_p = top_p_override.or(manifest_top_p).or(Some(0.9));
     let final_top_k = top_k_override.or(manifest_top_k).or(Some(50));
     let final_max_tokens = max_tokens_override.unwrap_or(50);
+    
+    // Load grammar validator from expert if available (completely generic - works with any GBNF)
+    if let Some(ref grammar_path) = grammar_file_path {
+        if !is_oneshot || debug {
+            println!();
+            println!("  {} Loading grammar validator...", "📐".bright_blue());
+        }
+        
+        match engine.load_grammar_validator(grammar_path) {
+            Ok(_) => {
+                if !is_oneshot || debug {
+                    println!(
+                        "    {} Grammar loaded from: {}",
+                        "✓".bright_green(),
+                        grammar_path.display()
+                    );
+                }
+            }
+            Err(e) => {
+                if !is_oneshot || debug {
+                    println!(
+                        "    {} Failed to load grammar: {}",
+                        "⚠️".bright_yellow(),
+                        e
+                    );
+                }
+            }
+        }
+    }
 
     // Log parameter sources (only in debug or interactive mode)
     if (!is_oneshot || debug)
@@ -571,6 +643,7 @@ pub fn chat(
             gen_config.temperature,
             gen_config.top_p,
             debug,
+            show_reasoning,
         ) {
             Ok(response) => {
                 let cleaned = sanitize_response(&response);
@@ -765,6 +838,7 @@ pub fn chat(
             gen_config.max_tokens,
             gen_config.temperature,
             gen_config.top_p,
+            show_reasoning,
         ) {
             Ok(response) => {
                 print!("\r");

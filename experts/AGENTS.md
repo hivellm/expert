@@ -138,7 +138,7 @@ The `manifest.json` is the **core configuration file** for your expert. It defin
         "fine_grained": true,
         "_comment": "Qwen3-specific NTK-by-parts scaling"
       },
-      "prompt_template": "chatml",
+      "prompt_template": "chatml",  # Note: Uses Qwen3 native format (<|im_start|>/<|im_end|>)
       "adapters": []
     }
   ],
@@ -248,7 +248,7 @@ The `manifest.json` is the **core configuration file** for your expert. It defin
 
 - **`name`**: Path to base model directory
 - **`quantization`**: `"int4"` (recommended) or `"int8"`
-- **`prompt_template`**: `"chatml"` for Qwen3 models
+- **`prompt_template`**: `"chatml"` for Qwen3 models (uses Qwen3 native format `<|im_start|>/<|im_end|>`)
 - **`adapters`**: Empty array initially (filled after training)
 
 #### Constraints
@@ -295,11 +295,27 @@ Document known limitations in structured format:
 
 ### Dataset Format
 
-Training datasets use JSONL format (one JSON object per line):
+Training datasets use JSONL format (one JSON object per line) with a `text` field containing Qwen3-formatted conversations:
 
 ```jsonl
-{"instruction": "Task description", "input": "Input context", "output": "Expected output"}
-{"instruction": "Another task", "input": "Another input", "output": "Another output"}
+{"text": "<|im_start|>system\nDialect: sql\nSchema:\n...<|im_end|>\n<|im_start|>user\nQuestion...<|im_end|>\n<|im_start|>assistant\nAnswer...<|im_end|>\n"}
+```
+
+**Important**: All experts must use **Qwen3 native format** (`<|im_start|>/<|im_end|>`) instead of generic ChatML (`<|system|>/<|end|>`). This ensures compatibility with Qwen3 models and optimal training performance.
+
+**Format Structure:**
+```
+<|im_start|>system
+{system_content}<|im_end|>
+<|im_start|>user
+{user_content}<|im_end|>
+<|im_start|>assistant
+{assistant_content}<|im_end|>
+```
+
+**Example:**
+```jsonl
+{"text": "<|im_start|>system\nDialect: sql\nSchema:\nusers(id, name, email)<|im_end|>\n<|im_start|>user\nFind all users<|im_end|>\n<|im_start|>assistant\nSELECT * FROM users;<|im_end|>\n"}
 ```
 
 ### Dataset Collection Strategies
@@ -382,18 +398,28 @@ dataset = load_dataset("dataset_name", split="train")
 
 ### Dataset Preprocessing
 
-Create `preprocess.py` to process raw data:
+Create `preprocess.py` to process raw data and format it using **Qwen3 native format**:
 
 ```python
 #!/usr/bin/env python3
 """
 Dataset preprocessing script for expert-<name>
+Formats examples using Qwen3 native format (<|im_start|>/<|im_end|>)
 """
 
 import json
 import re
 from pathlib import Path
 from typing import List, Dict
+
+def format_qwen3(system: str, user: str, assistant: str) -> str:
+    """Format example with Qwen3 native format (<|im_start|>/<|im_end|>)"""
+    # Qwen3 format: <|im_start|>role\ncontent<|im_end|>
+    return (
+        f"<|im_start|>system\n{system}<|im_end|>\n"
+        f"<|im_start|>user\n{user}<|im_end|>\n"
+        f"<|im_start|>assistant\n{assistant}<|im_end|>\n"
+    )
 
 def load_raw_data(raw_dir: Path) -> List[Dict]:
     """Load all raw data files"""
@@ -404,16 +430,21 @@ def load_raw_data(raw_dir: Path) -> List[Dict]:
                 examples.append(json.loads(line))
     return examples
 
-def clean_example(example: Dict) -> Dict:
-    """Clean and normalize example"""
-    # Remove extra whitespace
-    # Normalize formatting
-    # Validate structure
-    return {
-        "instruction": example["instruction"].strip(),
-        "input": example.get("input", "").strip(),
-        "output": example["output"].strip()
-    }
+def format_example(example: Dict) -> Dict:
+    """Format example into Qwen3 format"""
+    instruction = example.get("instruction", "").strip()
+    input_text = example.get("input", "").strip()
+    output = example.get("output", "").strip()
+    
+    # Build system message
+    system_content = f"Task: {example.get('task', 'general')}"
+    if input_text:
+        system_content += f"\nContext: {input_text}"
+    
+    # Format using Qwen3 format
+    text = format_qwen3(system_content, instruction, output)
+    
+    return {"text": text}
 
 def validate_example(example: Dict) -> bool:
     """Validate example structure and content"""
@@ -432,7 +463,8 @@ def deduplicate_examples(examples: List[Dict]) -> List[Dict]:
     seen = set()
     unique = []
     for ex in examples:
-        key = (ex["instruction"], ex.get("input", ""), ex["output"])
+        # Use instruction + output as deduplication key
+        key = (ex["instruction"], ex.get("output", ""))
         if key not in seen:
             seen.add(key)
             unique.append(ex)
@@ -448,10 +480,6 @@ def main():
     examples = load_raw_data(raw_dir)
     print(f"Loaded {len(examples)} raw examples")
     
-    # Clean
-    print("Cleaning examples...")
-    examples = [clean_example(ex) for ex in examples]
-    
     # Validate
     print("Validating examples...")
     examples = [ex for ex in examples if validate_example(ex)]
@@ -460,27 +488,37 @@ def main():
     # Deduplicate
     print("Deduplicating...")
     examples = deduplicate_examples(examples)
-    print(f"Final dataset: {len(examples)} examples")
+    print(f"After deduplication: {len(examples)} examples")
+    
+    # Format examples using Qwen3 format
+    print("Formatting examples with Qwen3 format...")
+    formatted_examples = [format_example(ex) for ex in examples]
     
     # Split train/validation/test
-    train_size = int(len(examples) * 0.8)
-    val_size = int(len(examples) * 0.1)
+    train_size = int(len(formatted_examples) * 0.8)
+    val_size = int(len(formatted_examples) * 0.1)
     
-    train = examples[:train_size]
-    val = examples[train_size:train_size + val_size]
-    test = examples[train_size + val_size:]
+    train = formatted_examples[:train_size]
+    val = formatted_examples[train_size:train_size + val_size]
+    test = formatted_examples[train_size + val_size:]
     
     # Save
     for split, data in [("train", train), ("validation", val), ("test", test)]:
         output_path = Path(f"datasets/{split}.jsonl")
-        with open(output_path, "w") as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             for ex in data:
-                f.write(json.dumps(ex) + "\n")
+                f.write(json.dumps(ex, ensure_ascii=False) + "\n")
         print(f"Saved {len(data)} examples to {output_path}")
 
 if __name__ == "__main__":
     main()
 ```
+
+**Key Points:**
+- Always use `format_qwen3()` function to ensure correct format
+- Output must have a `text` field with Qwen3-formatted conversation
+- Format: `<|im_start|>role\ncontent<|im_end|>` (no spaces after role name)
+- Ensure compatibility: Functions should support both Qwen3 and legacy ChatML formats for backward compatibility
 
 ### Dataset Requirements
 
@@ -488,7 +526,8 @@ if __name__ == "__main__":
 - **Quality over quantity**: Better to have fewer high-quality examples
 - **Diversity**: Cover all use cases and edge cases
 - **Validation**: All examples should be manually reviewed
-- **Format consistency**: All examples follow same structure
+- **Format consistency**: All examples must use Qwen3 native format (`<|im_start|>/<|im_end|>`)
+- **Field requirement**: All examples must have a `text` field with Qwen3-formatted conversation
 
 ---
 

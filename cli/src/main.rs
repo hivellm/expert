@@ -228,6 +228,10 @@ enum Commands {
         /// Maximum tokens to generate
         #[arg(long, help = "Maximum tokens to generate (default: 50)")]
         max_tokens: Option<usize>,
+
+        /// Show reasoning/thinking text in output (default: false, only shows final output)
+        #[arg(long, help = "Include reasoning/thinking text in output. By default, only the final output is shown.")]
+        show_reasoning: bool,
     },
 
     /// Route a query to the best matching expert(s)
@@ -368,6 +372,7 @@ fn main() -> Result<()> {
             top_p,
             top_k,
             max_tokens,
+            show_reasoning,
         } => commands::chat::chat(
             experts,
             base_model,
@@ -378,6 +383,7 @@ fn main() -> Result<()> {
             top_p,
             top_k,
             max_tokens,
+            show_reasoning,
             &app_config,
         ),
 

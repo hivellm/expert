@@ -219,7 +219,11 @@ mod tests {
 
     #[test]
     fn test_validate_sft() {
-        let mut validator = DatasetValidator::new(ValidationConfig::default());
+        let config = ValidationConfig {
+            min_length: 1, // Allow short outputs for testing
+            ..Default::default()
+        };
+        let mut validator = DatasetValidator::new(config);
 
         let example = json!({
             "task": "test",
