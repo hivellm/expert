@@ -499,14 +499,6 @@ See [STATUS.md](STATUS.md) for detailed tracking.
 - [PERFORMANCE.md](docs/PERFORMANCE.md) - Resource budgeting and optimization
 - [ROADMAP.md](ROADMAP.md) - Implementation phases (P0-P6)
 
-## Examples
-
-See [examples/](examples/) directory for:
-- Sample manifest.json files
-- Expert training scripts
-- Synthetic data generation prompts
-- API usage patterns
-
 ## Technology Stack
 
 **Hybrid Python + Rust architecture:**
@@ -567,7 +559,7 @@ This is currently a design/architecture phase. Implementation contributions welc
 
 ## License
 
-TBD (likely Apache-2.0 or MIT)
+MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Credits
 
