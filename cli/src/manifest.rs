@@ -239,7 +239,7 @@ pub struct Adapter {
     pub use_dora: Option<bool>,
 
     // IA³ doesn't need r/alpha, just target_modules
-    pub path: String,
+    // Note: path field removed - adapters are automatically discovered in expert root directory
     #[serde(skip_serializing_if = "Option::is_none")]
     pub size_bytes: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -672,18 +672,8 @@ impl Manifest {
             }
         }
 
-        // Validate weight paths are unique across all models
-        let mut seen_paths = std::collections::HashSet::new();
-        for model in base_models {
-            for adapter in &model.adapters {
-                if !seen_paths.insert(&adapter.path) {
-                    return Err(Error::Manifest(format!(
-                        "Duplicate adapter path found: {}. Each model must have unique weight paths",
-                        adapter.path
-                    )));
-                }
-            }
-        }
+        // Note: adapter.path field removed - adapters are automatically discovered in expert root
+        // No need to validate unique paths since all adapters are in the same location
 
         Ok(())
     }
@@ -2014,7 +2004,7 @@ mod tests {
         // Unicode characters should be supported
         let mut manifest = create_test_manifest_v2();
 
-        manifest.description = "Expert for 中文, Português, and العربية languages 🚀".to_string();
+        manifest.description = "Expert for 中文, Português, and العربية languages".to_string();
         manifest.author = Some("José Silva 李明".to_string());
 
         assert!(manifest.validate().is_ok());

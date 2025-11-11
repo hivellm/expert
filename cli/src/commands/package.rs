@@ -18,7 +18,7 @@ pub fn package(
     include_tests: bool,
     list_contents: bool,
 ) -> Result<()> {
-    println!("{}", "📦 Packaging Expert".bright_cyan().bold());
+    println!("{}", "Packaging Expert".bright_cyan().bold());
     println!(
         "{}",
         "═══════════════════════════════════════".bright_cyan()
@@ -36,17 +36,17 @@ pub fn package(
 
     println!(
         "  {} Expert: {}",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         manifest.name.bright_white()
     );
     println!(
         "  {} Version: {}",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         manifest.version.bright_white()
     );
     println!(
         "  {} Schema: {}",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         schema_version.as_str().bright_white()
     );
     println!();
@@ -57,7 +57,7 @@ pub fn package(
             if model.is_some() {
                 println!(
                     "{}",
-                    "  ⚠️  --model flag ignored for schema v1.0 (single model only)"
+                    "  [!] --model flag ignored for schema v1.0 (single model only)"
                         .bright_yellow()
                 );
             }
@@ -84,7 +84,7 @@ pub fn package(
                     let auto_model = available_models[0].clone();
                     println!(
                         "  {} Auto-detected model: {}",
-                        "→".bright_blue(),
+                        "[>]".bright_blue(),
                         auto_model.bright_white()
                     );
                     auto_model
@@ -109,7 +109,7 @@ pub fn package(
     }
 
     println!();
-    println!("{}", "✅ Packaging complete!".bright_green().bold());
+    println!("{}", "[OK] Packaging complete!".bright_green().bold());
     Ok(())
 }
 
@@ -122,7 +122,7 @@ fn package_v1(
 ) -> Result<()> {
     println!(
         "  {} {}",
-        "📦".bright_blue(),
+        "[*]".bright_blue(),
         "Packaging schema v1.0 (single model)...".bright_white()
     );
 
@@ -151,7 +151,7 @@ fn package_v1(
 
     println!(
         "  {} Output: {}",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         output_file.display().to_string().bright_white()
     );
     println!();
@@ -181,73 +181,45 @@ fn package_v1(
     tar.append_data(&mut header, "manifest.json", manifest_bytes)
         .map_err(|e| Error::Packaging(format!("Failed to add manifest to archive: {}", e)))?;
 
-    println!("    {} manifest.json", "✓".bright_green());
+    println!("    {} manifest.json", "[OK]".bright_green());
 
-    // Add adapter weights
+    // Add adapter weights (automatically discovered in expert root)
     if let Some(ref adapters) = manifest.adapters {
         for adapter in adapters {
-            // adapter.path might be "weights/adapter" or just "adapter"
-            // If it starts with "weights/", strip it since weights_dir already points there
-            let adapter_relative_path = adapter
-                .path
-                .strip_prefix("weights/")
-                .or_else(|| adapter.path.strip_prefix("weights\\"))
-                .unwrap_or(&adapter.path);
+            // Adapters are in expert root directory (where manifest.json is)
+            let expert_root = weights_dir.parent().unwrap_or(weights_dir);
+            
+            // Add essential adapter files (weights, config, tokenizer)
+            let essential_files = vec![
+                "adapter_model.safetensors", // Adapter weights
+                "adapter_config.json",       // PEFT config
+                "special_tokens_map.json",   // Tokenizer special tokens
+                "tokenizer_config.json",     // Tokenizer config
+                "tokenizer.json",            // Tokenizer vocabulary
+                "training_args.bin",         // Training arguments
+                "vocab.json",                // Vocabulary file
+                "README.md",                 // Adapter docs (optional)
+            ];
 
-            let weight_path = weights_dir.join(adapter_relative_path);
-
-            // Check if it's a directory or file
-            if !weight_path.exists() {
-                return Err(Error::Packaging(format!(
-                    "Adapter path not found: {}",
-                    weight_path.display()
-                )));
+            let mut added_count = 0;
+            for file_name in &essential_files {
+                let file_path = expert_root.join(file_name);
+                if file_path.exists() {
+                    // Files go to root of package (same as expert root)
+                    tar.append_path_with_name(&file_path, file_name)
+                        .map_err(|e| {
+                            Error::Packaging(format!("Failed to add {}: {}", file_name, e))
+                        })?;
+                    added_count += 1;
+                }
             }
 
-            if weight_path.is_dir() {
-                // Add essential adapter files (weights, config, tokenizer)
-                let essential_files = vec![
-                    "adapter_model.safetensors", // Adapter weights
-                    "adapter_config.json",       // PEFT config
-                    "special_tokens_map.json",   // Tokenizer special tokens
-                    "tokenizer_config.json",     // Tokenizer config
-                    "tokenizer.json",            // Tokenizer vocabulary
-                    "training_args.bin",         // Training arguments
-                    "vocab.json",                // Vocabulary file
-                    "README.md",                 // Adapter docs (optional)
-                ];
-
-                let mut added_count = 0;
-                for file_name in &essential_files {
-                    let file_path = weight_path.join(file_name);
-                    if file_path.exists() {
-                        let archive_path = format!("{}/{}", adapter.path, file_name);
-                        tar.append_path_with_name(&file_path, &archive_path)
-                            .map_err(|e| {
-                                Error::Packaging(format!("Failed to add {}: {}", file_name, e))
-                            })?;
-                        added_count += 1;
-                    }
-                }
-
+            if added_count > 0 {
                 println!(
-                    "    {} {} ({} files)",
-                    "✓".bright_green(),
-                    adapter.path.bright_white(),
+                    "    {} Adapter ({} files)",
+                    "[OK]".bright_green(),
                     added_count
                 );
-            } else {
-                // Add single file
-                tar.append_path_with_name(&weight_path, &adapter.path)
-                    .map_err(|e| {
-                        Error::Packaging(format!(
-                            "Failed to add adapter file {}: {}",
-                            weight_path.display(),
-                            e
-                        ))
-                    })?;
-
-                println!("    {} {}", "✓".bright_green(), adapter.path.bright_white());
             }
         }
     }
@@ -263,13 +235,13 @@ fn package_v1(
                 .ok();
             println!(
                 "    {} {}",
-                "✓".bright_green(),
+                    "[OK]".bright_green(),
                 soft_prompt.path.bright_white()
             );
         } else {
             println!(
                 "    {} {} (not found, skipping)",
-                "⚠️ ".bright_yellow(),
+                    "[!] ".bright_yellow(),
                 soft_prompt.path.bright_white()
             );
         }
@@ -282,7 +254,7 @@ fn package_v1(
     let readme_path = expert_root.join("README.md");
     if readme_path.exists() {
         tar.append_path_with_name(&readme_path, "README.md").ok();
-        println!("    {} README.md", "✓".bright_green());
+        println!("    {} README.md", "[OK]".bright_green());
     }
 
     // Add grammar.gbnf (common convention)
@@ -290,7 +262,7 @@ fn package_v1(
     if grammar_path.exists() {
         tar.append_path_with_name(&grammar_path, "grammar.gbnf")
             .ok();
-        println!("    {} grammar.gbnf", "✓".bright_green());
+        println!("    {} grammar.gbnf", "[OK]".bright_green());
     }
 
     // Add grammar file from manifest (if specified)
@@ -302,13 +274,13 @@ fn package_v1(
                     .ok();
                 println!(
                     "    {} {} (from manifest)",
-                    "✓".bright_green(),
+                    "[OK]".bright_green(),
                     grammar_file
                 );
             } else {
                 println!(
                     "    {} {} (from manifest, not found)",
-                    "⚠️ ".bright_yellow(),
+                    "[!] ".bright_yellow(),
                     grammar_file
                 );
             }
@@ -334,10 +306,10 @@ fn package_v1(
                 }
             }
             if test_count > 0 {
-                println!("    {} tests/ ({} files)", "✓".bright_green(), test_count);
+                println!("    {} tests/ ({} files)", "[OK]".bright_green(), test_count);
             }
         } else {
-            println!("    {} tests/ directory not found", "⚠️ ".bright_yellow());
+            println!("    {} tests/ directory not found", "[!] ".bright_yellow());
         }
     }
 
@@ -345,7 +317,7 @@ fn package_v1(
     let license_path = expert_root.join("LICENSE");
     if license_path.exists() {
         tar.append_path_with_name(&license_path, "LICENSE").ok();
-        println!("    {} LICENSE", "✓".bright_green());
+        println!("    {} LICENSE", "[OK]".bright_green());
     }
 
     // Finalize archive
@@ -359,23 +331,23 @@ fn package_v1(
     println!();
     println!(
         "  {} Package created successfully!",
-        "✅".bright_green().bold()
+        "[OK]".bright_green().bold()
     );
     println!(
         "  {} File: {}",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         output_file.display().to_string().bright_white()
     );
     println!(
         "  {} Size: {:.2} MB",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         size_mb.to_string().bright_white()
     );
 
     // Calculate and display file size
     let file_size = fs::metadata(&output_file)?.len();
     let size_mb = file_size as f64 / 1_048_576.0;
-    println!("  {} Size: {:.2} MB", "→".bright_blue(), size_mb);
+    println!("  {} Size: {:.2} MB", "[>]".bright_blue(), size_mb);
 
     // Calculate SHA256 hash of the package
     let mut file = File::open(&output_file)?;
@@ -394,7 +366,7 @@ fn package_v1(
     let hash_hex = format!("{:x}", hash);
     println!(
         "  {} SHA256: {}",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         hash_hex.bright_white()
     );
 
@@ -408,7 +380,7 @@ fn package_v1(
     fs::write(&checksum_file, checksum_content)?;
     println!(
         "  {} Checksum: {}",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         checksum_file.display().to_string().bright_white()
     );
 
@@ -425,12 +397,12 @@ fn package_v2(
 ) -> Result<()> {
     println!(
         "  {} {}",
-        "📦".bright_blue(),
+        "[*]".bright_blue(),
         "Packaging schema v2.0 (multi-model)...".bright_white()
     );
     println!(
         "  {} Model: {}",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         model_name.bright_white()
     );
 
@@ -439,7 +411,7 @@ fn package_v2(
     if let Some(checkpoint) = packaging_checkpoint {
         println!(
             "  {} Packaging checkpoint: {}",
-            "→".bright_blue(),
+            "[>]".bright_blue(),
             checkpoint.bright_white()
         );
     }
@@ -463,10 +435,10 @@ fn package_v2(
             ))
         })?;
 
-    println!("  {} Found model configuration", "✓".bright_green());
+    println!("  {} Found model configuration", "[OK]".bright_green());
     println!(
         "    {} SHA256: {}",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         selected_model
             .sha256
             .as_deref()
@@ -475,7 +447,7 @@ fn package_v2(
     );
     println!(
         "    {} Quantization: {}",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         selected_model
             .quantization
             .as_deref()
@@ -484,7 +456,7 @@ fn package_v2(
     );
     println!(
         "    {} Adapters: {}",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         selected_model.adapters.len().to_string().bright_white()
     );
 
@@ -492,10 +464,10 @@ fn package_v2(
     if packaging_checkpoint.is_some() {
         for (i, adapter) in selected_model.adapters.iter().enumerate() {
             println!(
-                "    {} Adapter {} original path: {}",
-                "→".bright_blue(),
+                "    {} Adapter {}: {} (auto-discovered in root)",
+                "[>]".bright_blue(),
                 i + 1,
-                adapter.path.bright_white()
+                adapter.adapter_type.bright_white()
             );
         }
     }
@@ -528,75 +500,53 @@ fn package_v2(
     if let Some(checkpoint) = packaging_checkpoint {
         println!(
             "  {} Adjusting adapter paths to use {}",
-            "→".bright_blue(),
+            "[>]".bright_blue(),
             checkpoint.bright_white()
         );
-        for adapter in &mut model_with_adjusted_paths.adapters {
-            // Replace checkpoint path if it contains a checkpoint directory
-            // e.g., "weights/qwen3-06b/final" -> "weights/qwen3-06b/checkpoint-1250"
-            if adapter.path.contains("/final") || adapter.path.contains("\\final") {
-                adapter.path = adapter.path.replace("/final", &format!("/{}", checkpoint));
-                adapter.path = adapter
-                    .path
-                    .replace("\\final", &format!("\\{}", checkpoint));
-            } else if adapter.path.contains("/checkpoint-")
-                || adapter.path.contains("\\checkpoint-")
-            {
-                // Replace existing checkpoint with new one
-                // e.g., "weights/qwen3-06b/checkpoint-500" -> "weights/qwen3-06b/checkpoint-1250"
-                let parts: Vec<&str> = adapter.path.split('/').collect();
-                let mut new_parts = Vec::new();
-                for part in &parts {
-                    if part.starts_with("checkpoint-") {
-                        new_parts.push(checkpoint);
-                    } else {
-                        new_parts.push(part);
-                    }
-                }
-                adapter.path = new_parts.join("/");
-            }
-        }
+        // Note: adapter.path field removed - adapters are automatically discovered in expert root
+        // Checkpoint selection is now handled via checkpoint_step field in manifest
+        // No path adjustment needed
     }
 
     println!(
         "  {} {}",
-        "📁".bright_blue(),
+        "[*]".bright_blue(),
         "Package contents:".bright_white()
     );
     println!(
         "    {} Filtered manifest (model: {})",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         model_name.bright_white()
     );
 
-    // List adapter weights (using adjusted paths if applicable)
+    // List adapter weights (automatically discovered in expert root)
     for (i, adapter) in model_with_adjusted_paths.adapters.iter().enumerate() {
-        // Strip "weights/" prefix for filesystem lookup
-        let adapter_relative_path = adapter
-            .path
-            .strip_prefix("weights/")
-            .or_else(|| adapter.path.strip_prefix("weights\\"))
-            .unwrap_or(&adapter.path);
-        let weight_path = weights_dir.join(adapter_relative_path);
-        let exists = weight_path.exists();
+        // Adapters are in expert root directory
+        let expert_root = weights_dir.parent().unwrap_or(weights_dir);
+        let adapter_file = expert_root.join("adapter_model.safetensors");
+        let exists = adapter_file.exists();
         let status = if exists {
-            "✓".bright_green()
+                    "[OK]".bright_green()
         } else {
-            "✗".bright_red()
+            "[X]".bright_red()
         };
 
         println!(
-            "    {} Adapter {}: {} {}",
+            "    {} Adapter {}: {} ({})",
             status,
             i + 1,
-            adapter.path.bright_white(),
-            if exists { "" } else { "(missing)" }
+            adapter.adapter_type.bright_white(),
+            if exists {
+                "found in root".bright_green()
+            } else {
+                "missing".bright_red()
+            }
         );
 
         if !exists {
             return Err(Error::Packaging(format!(
                 "Adapter weight file not found: {}",
-                weight_path.display()
+                adapter_file.display()
             )));
         }
     }
@@ -605,19 +555,19 @@ fn package_v2(
     if !manifest.soft_prompts.is_empty() {
         println!(
             "    {} {} soft prompt(s) (shared)",
-            "→".bright_blue(),
+            "[>]".bright_blue(),
             manifest.soft_prompts.len().to_string().bright_white()
         );
     }
 
     if manifest.license.is_some() {
-        println!("    {} LICENSE", "→".bright_blue());
+        println!("    {} LICENSE", "[>]".bright_blue());
     }
 
     println!();
     println!(
         "  {} Output: {}",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         output_file.display().to_string().bright_white()
     );
     println!();
@@ -657,81 +607,50 @@ fn package_v2(
 
     println!(
         "    {} manifest.json (filtered for {})",
-        "✓".bright_green(),
+                    "[OK]".bright_green(),
         model_name.bright_white()
     );
 
-    // Add model-specific adapter weights (using adjusted paths if packaging_checkpoint is set)
+    // Add model-specific adapter weights (automatically discovered in expert root)
     for adapter in &model_with_adjusted_paths.adapters {
-        // adapter.path might be "weights/adapter" or just "adapter"
-        // If it starts with "weights/", strip it since weights_dir already points there
-        let adapter_relative_path = adapter
-            .path
-            .strip_prefix("weights/")
-            .or_else(|| adapter.path.strip_prefix("weights\\"))
-            .unwrap_or(&adapter.path);
+        // Adapters are in expert root directory (where manifest.json is)
+        let expert_root = weights_dir.parent().unwrap_or(weights_dir);
+        
+        // Add essential adapter files (weights, config, tokenizer) - DIRECTLY TO ROOT
+        let essential_files = vec![
+            "adapter_model.safetensors", // Adapter weights
+            "adapter_config.json",       // PEFT config
+            "special_tokens_map.json",   // Tokenizer special tokens
+            "tokenizer_config.json",     // Tokenizer config
+            "tokenizer.json",            // Tokenizer vocabulary
+            "training_args.bin",         // Training arguments
+            "vocab.json",                // Vocabulary file
+            "README.md",                 // Adapter docs (optional)
+        ];
 
-        let weight_path = weights_dir.join(adapter_relative_path);
-
-        // Check if it's a directory or file
-        if !weight_path.exists() {
-            return Err(Error::Packaging(format!(
-                "Adapter path not found: {}",
-                weight_path.display()
-            )));
+        let mut added_count = 0;
+        for file_name in &essential_files {
+            let file_path = expert_root.join(file_name);
+            if file_path.exists() {
+                // Add directly to root of archive (no subdirectories)
+                tar.append_path_with_name(&file_path, file_name)
+                    .map_err(|e| {
+                        Error::Packaging(format!("Failed to add {}: {}", file_name, e))
+                    })?;
+                added_count += 1;
+            }
         }
 
-        if weight_path.is_dir() {
-            // Add essential adapter files (weights, config, tokenizer) - DIRECTLY TO ROOT
-            let essential_files = vec![
-                "adapter_model.safetensors", // Adapter weights
-                "adapter_config.json",       // PEFT config
-                "special_tokens_map.json",   // Tokenizer special tokens
-                "tokenizer_config.json",     // Tokenizer config
-                "tokenizer.json",            // Tokenizer vocabulary
-                "training_args.bin",         // Training arguments
-                "vocab.json",                // Vocabulary file
-                "README.md",                 // Adapter docs (optional)
-            ];
-
-            let mut added_count = 0;
-            for file_name in &essential_files {
-                let file_path = weight_path.join(file_name);
-                if file_path.exists() {
-                    // Add directly to root of archive (no subdirectories)
-                    tar.append_path_with_name(&file_path, file_name)
-                        .map_err(|e| {
-                            Error::Packaging(format!("Failed to add {}: {}", file_name, e))
-                        })?;
-                    added_count += 1;
-                }
-            }
-
+        if added_count > 0 {
             println!(
                 "    {} Adapter files ({} files added to root)",
-                "✓".bright_green(),
+                    "[OK]".bright_green(),
                 added_count
             );
         } else {
-            // Add single file to root
-            let file_name = weight_path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("adapter.bin");
-            tar.append_path_with_name(&weight_path, file_name)
-                .map_err(|e| {
-                    Error::Packaging(format!(
-                        "Failed to add adapter file {}: {}",
-                        weight_path.display(),
-                        e
-                    ))
-                })?;
-
-            println!(
-                "    {} {} (added to root)",
-                "✓".bright_green(),
-                file_name.bright_white()
-            );
+            return Err(Error::Packaging(
+                "Adapter files not found in expert root directory".to_string()
+            ));
         }
     }
 
@@ -749,7 +668,7 @@ fn package_v2(
             tar.append_path_with_name(&prompt_path, file_name).ok();
             println!(
                 "    {} {} (added to root)",
-                "✓".bright_green(),
+                    "[OK]".bright_green(),
                 file_name.bright_white()
             );
         }
@@ -765,7 +684,7 @@ fn package_v2(
     if grammar_path.exists() {
         tar.append_path_with_name(&grammar_path, "grammar.gbnf")
             .ok();
-        println!("    {} grammar.gbnf (shared)", "✓".bright_green());
+        println!("    {} grammar.gbnf (shared)", "[OK]".bright_green());
     }
 
     // Add grammar file from manifest (if specified) - to root
@@ -781,13 +700,13 @@ fn package_v2(
                     .ok();
                 println!(
                     "    {} {} (from manifest, added to root)",
-                    "✓".bright_green(),
+                    "[OK]".bright_green(),
                     file_name
                 );
             } else {
                 println!(
                     "    {} {} (from manifest, not found)",
-                    "⚠️ ".bright_yellow(),
+                    "[!] ".bright_yellow(),
                     grammar_file
                 );
             }
@@ -815,12 +734,12 @@ fn package_v2(
             if test_count > 0 {
                 println!(
                     "    {} tests/ ({} files, shared)",
-                    "✓".bright_green(),
+                    "[OK]".bright_green(),
                     test_count
                 );
             }
         } else {
-            println!("    {} tests/ directory not found", "⚠️ ".bright_yellow());
+            println!("    {} tests/ directory not found", "[!] ".bright_yellow());
         }
     }
 
@@ -828,7 +747,7 @@ fn package_v2(
     let license_path = expert_root.join("LICENSE");
     if license_path.exists() {
         tar.append_path_with_name(&license_path, "LICENSE").ok();
-        println!("    {} LICENSE (shared)", "✓".bright_green());
+        println!("    {} LICENSE (shared)", "[OK]".bright_green());
     }
 
     // Finalize archive
@@ -838,18 +757,18 @@ fn package_v2(
     println!();
     println!(
         "  {} Package created successfully!",
-        "✅".bright_green().bold()
+        "[OK]".bright_green().bold()
     );
     println!(
         "  {} File: {}",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         output_file.display().to_string().bright_white()
     );
 
     // Calculate and display file size
     let file_size = fs::metadata(&output_file)?.len();
     let size_mb = file_size as f64 / 1_048_576.0;
-    println!("  {} Size: {:.2} MB", "→".bright_blue(), size_mb);
+    println!("  {} Size: {:.2} MB", "[>]".bright_blue(), size_mb);
 
     // Calculate SHA256 hash of the package
     let mut file = File::open(&output_file)?;
@@ -868,7 +787,7 @@ fn package_v2(
     let hash_hex = format!("{:x}", hash);
     println!(
         "  {} SHA256: {}",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         hash_hex.bright_white()
     );
 
@@ -882,7 +801,7 @@ fn package_v2(
     fs::write(&checksum_file, checksum_content)?;
     println!(
         "  {} Checksum: {}",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         checksum_file.display().to_string().bright_white()
     );
 

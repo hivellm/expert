@@ -22,6 +22,50 @@ fn format_expert_prompt(prompt: &str, expert: &LoadedExpert) -> String {
     };
 
     match template {
+        Some("qwen3") => {
+            let dialect = detect_dialect_from_capabilities(&expert.manifest.capabilities);
+            
+            // Generic prompt splitting: if prompt contains double newline, treat as context/query split
+            // This works for any expert type (Cypher, SQL, JSON, etc.)
+            let (system_msg, user_prompt) = if let Some(split_pos) = prompt.find("\n\n") {
+                let context_part = prompt[..split_pos].trim();
+                let query_part = prompt[split_pos + 2..].trim();
+                
+                // Build system message: add dialect if not already present and dialect is not "text"
+                let system_msg = if context_part.starts_with("Dialect:") {
+                    context_part.to_string()
+                } else if dialect != "text" {
+                    format!("Dialect: {}\n{}", dialect, context_part)
+                } else if !context_part.is_empty() {
+                    context_part.to_string()
+                } else {
+                    "You are a helpful AI assistant.".to_string()
+                };
+                
+                (system_msg, query_part.to_string())
+            } else {
+                // No double newline: check if prompt starts with context-like patterns
+                // If it starts with "Dialect:" or looks like context, put in system, otherwise user
+                let system_msg = if prompt.starts_with("Dialect:") {
+                    if dialect != "text" {
+                        prompt.to_string()
+                    } else {
+                        format!("Dialect: {}", prompt)
+                    }
+                } else if dialect != "text" {
+                    format!("Dialect: {}", dialect)
+                } else {
+                    "You are a helpful AI assistant.".to_string()
+                };
+                (system_msg, prompt.to_string())
+            };
+
+            format!(
+                "<|im_start|>system\n{system_msg}<|im_end|>\n<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n",
+                system_msg = system_msg,
+                user_prompt = user_prompt
+            )
+        }
         Some("chatml") | Some("qwen") => {
             // ChatML format for Qwen models
             // Detect dialect from capabilities
@@ -115,6 +159,61 @@ fn sanitize_response(raw: &str) -> String {
     trimmed.to_string()
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::manifest::{Adapter, BaseModelV2, Manifest};
+    use std::path::PathBuf;
+
+    fn build_loaded_expert(prompt_template: &str, capabilities: Vec<&str>) -> LoadedExpert {
+        let mut manifest = Manifest::default();
+        manifest.capabilities = capabilities.into_iter().map(|c| c.to_string()).collect();
+        manifest.base_models = Some(vec![BaseModelV2 {
+            name: "base".to_string(),
+            sha256: None,
+            quantization: None,
+            rope_scaling: None,
+            prompt_template: Some(prompt_template.to_string()),
+            adapters: vec![Adapter {
+                adapter_type: "dora".to_string(),
+                target_modules: vec![],
+                r: None,
+                alpha: None,
+                scaling: None,
+                dropout: None,
+                use_dora: None,
+                path: "adapter".to_string(),
+                size_bytes: None,
+                sha256: None,
+            }],
+        }]);
+
+        LoadedExpert {
+            name: "expert-test@0.1.0".to_string(),
+            manifest,
+            adapter_path: PathBuf::from("adapter"),
+            manifest_path: PathBuf::from("manifest.json"),
+        }
+    }
+
+    #[test]
+    fn formats_qwen3_prompt_with_im_tokens() {
+        let expert =
+            build_loaded_expert("qwen3", vec!["query:cypher", "feature:pattern_matching"]);
+        let formatted = format_expert_prompt("MATCH (n) RETURN n", &expert);
+        let expected = "<|im_start|>system\nDialect: cypher<|im_end|>\n<|im_start|>user\nMATCH (n) RETURN n<|im_end|>\n<|im_start|>assistant\n";
+        assert_eq!(formatted, expected);
+    }
+
+    #[test]
+    fn formats_chatml_prompt_as_before() {
+        let expert = build_loaded_expert("chatml", vec!["feature:json_output"]);
+        let formatted = format_expert_prompt("Generate JSON", &expert);
+        let expected = "<|system|>\nYou are a helpful AI assistant.\n<|end|>\n<|user|>\nGenerate JSON\n<|end|>\n<|assistant|>\n";
+        assert_eq!(formatted, expected);
+    }
+}
+
 pub fn chat(
     experts: Vec<String>,
     base_model: Option<PathBuf>,
@@ -132,7 +231,7 @@ pub fn chat(
     let is_oneshot = prompt.is_some();
 
     if !is_oneshot || debug {
-        println!("{}", "💬 Expert Chat".bright_cyan().bold());
+        println!("{}", "Expert Chat".bright_cyan().bold());
         println!(
             "{}",
             "═══════════════════════════════════════".bright_cyan()
@@ -145,14 +244,14 @@ pub fn chat(
         if !experts.is_empty() {
             println!(
                 "  {} Experts to load ({}):",
-                "→".bright_blue(),
+                "[>]".bright_blue(),
                 experts.len()
             );
             for expert in &experts {
                 println!("    - {}", expert.bright_white());
             }
         } else {
-            println!("  {} Mode: Base model only", "→".bright_blue());
+            println!("  {} Mode: Base model only", "[>]".bright_blue());
         }
         println!();
     }
@@ -163,10 +262,10 @@ pub fn chat(
     if !is_oneshot || debug {
         println!(
             "  {} Base Model: {}",
-            "→".bright_blue(),
+            "[>]".bright_blue(),
             base_model_path.display().to_string().bright_white()
         );
-        println!("  {} Device: {}", "→".bright_blue(), device.bright_white());
+        println!("  {} Device: {}", "[>]".bright_blue(), device.bright_white());
         println!();
     }
 
@@ -175,7 +274,7 @@ pub fn chat(
 
     if !experts.is_empty() {
         if !is_oneshot || debug {
-            println!("  {} Locating expert packages...", "🔍".bright_blue());
+            println!("  {} Locating expert packages...", "[*]".bright_blue());
         }
 
         // Try to load from registry first, fallback to local experts/ directory
@@ -221,7 +320,7 @@ pub fn chat(
                 if !is_oneshot || debug {
                     println!(
                         "    {} Expert directory not found: {} ({})",
-                        "⚠️".bright_yellow(),
+                        "[!]".bright_yellow(),
                         expert_dir.display(),
                         pretty_label
                     );
@@ -235,7 +334,7 @@ pub fn chat(
                 if !is_oneshot || debug {
                     println!(
                         "    {} No manifest.json found in {}",
-                        "⚠️".bright_yellow(),
+                        "[!]".bright_yellow(),
                         expert_dir.display()
                     );
                 }
@@ -244,47 +343,21 @@ pub fn chat(
 
             let manifest = Manifest::load(&manifest_path)?;
 
-            // Find adapter path from manifest
-            let adapter_path = if let Some(base_models) = &manifest.base_models {
-                if let Some(first_model) = base_models.first() {
-                    if let Some(first_adapter) = first_model.adapters.first() {
-                        // Adapter path from manifest is relative
-                        // Try multiple locations:
-                        // 1. expert_dir/{path} (new v0.2.0+ extracted structure)
-                        // 2. expert_dir/weights/{path} (old structure)
-                        // 3. expert_dir (root, for packages that extract to root)
+            // Find adapter path automatically - standard location is root of expert directory
+            // The adapter_model.safetensors should be in the root of the expert directory
+            let adapter_path = expert_dir.clone();
 
-                        let path_from_manifest = &first_adapter.path;
-                        let candidate_paths = vec![
-                            expert_dir.join(path_from_manifest),
-                            expert_dir.join("weights").join(path_from_manifest),
-                            expert_dir.clone(), // Try root if adapter files are there
-                        ];
-
-                        candidate_paths
-                            .into_iter()
-                            .find(|p| {
-                                p.join("adapter_model.safetensors").exists()
-                                    || p.join("adapter_config.json").exists()
-                            })
-                            .unwrap_or_else(|| expert_dir.clone())
-                    } else {
-                        expert_dir.clone()
-                    }
-                } else {
-                    expert_dir.clone()
-                }
-            } else {
-                expert_dir.clone()
-            };
-
-            // Verify adapter files exist
+            // Verify adapter files exist in root - if not found, skip loading this expert
+            // Standard location: adapter_model.safetensors must be in the root of expert directory
             if !adapter_path.join("adapter_model.safetensors").exists() {
                 if !is_oneshot || debug {
                     println!(
-                        "    {} No adapter found at: {}",
-                        "⚠️".bright_yellow(),
+                        "    {} Adapter not found in root: {}/adapter_model.safetensors",
+                        "[X]".bright_red(),
                         adapter_path.display()
+                    );
+                    println!(
+                        "       Expert will not be loaded. Adapter must be in root directory.",
                     );
                 }
                 continue;
@@ -294,7 +367,7 @@ pub fn chat(
                 let version_label = &manifest.version;
                 println!(
                     "    {} {} v{}",
-                    "✓".bright_green(),
+                    "[OK]".bright_green(),
                     manifest.name,
                     version_label
                 );
@@ -312,7 +385,7 @@ pub fn chat(
             if !is_oneshot || debug {
                 println!(
                     "    {} No expert packages found, using base model only",
-                    "⚠️".bright_yellow()
+                    "[!]".bright_yellow()
                 );
                 println!();
             }
@@ -321,7 +394,7 @@ pub fn chat(
 
     if !is_oneshot || debug {
         println!();
-        println!("  {} Loading base model...", "🚀".bright_green());
+        println!("  {} Loading base model...", "[*]".bright_green());
     }
 
     // Determine if we should load with adapter
@@ -348,7 +421,7 @@ pub fn chat(
             println!();
             println!(
                 "  {} Attempting to load adapter from first expert: {}",
-                "🔧".bright_blue(),
+                "[*]".bright_blue(),
                 first_expert.name
             );
         }
@@ -387,7 +460,7 @@ pub fn chat(
     if !loaded_experts.is_empty() {
         if !is_oneshot || debug {
             println!();
-            println!("  {} Loading soft prompts...", "📝".bright_blue());
+            println!("  {} Loading soft prompts...", "[*]".bright_blue());
         }
 
         for expert in &loaded_experts {
@@ -397,7 +470,7 @@ pub fn chat(
                 if !is_oneshot || debug {
                     println!(
                         "    {} Failed to load soft prompts for {}: {}",
-                        "⚠️".bright_yellow(),
+                        "[!]".bright_yellow(),
                         expert.name,
                         e
                     );
@@ -523,7 +596,7 @@ pub fn chat(
                 if !is_oneshot || debug {
                     println!(
                         "    {} Grammar loaded from: {}",
-                        "✓".bright_green(),
+                        "[OK]".bright_green(),
                         grammar_path.display()
                     );
                 }
@@ -532,7 +605,7 @@ pub fn chat(
                 if !is_oneshot || debug {
                     println!(
                         "    {} Failed to load grammar: {}",
-                        "⚠️".bright_yellow(),
+                        "[!]".bright_yellow(),
                         e
                     );
                 }
@@ -547,7 +620,7 @@ pub fn chat(
             || top_p_override.is_some()
             || top_k_override.is_some())
     {
-        println!("  {} Generation parameters:", "→".bright_blue());
+        println!("  {} Generation parameters:", "[>]".bright_blue());
 
         let temp_source = if temperature_override.is_some() {
             "CLI override"
@@ -607,7 +680,7 @@ pub fn chat(
                 if debug {
                     println!(
                         "  {} Using expert: {}",
-                        "→".bright_blue(),
+                        "[>]".bright_blue(),
                         expert.name.bright_cyan()
                     );
                 }
@@ -618,7 +691,7 @@ pub fn chat(
             } else {
                 // Generic query - use base model without ChatML
                 if debug {
-                    println!("  {} Using base model (generic query)", "→".bright_blue());
+                    println!("  {} Using base model (generic query)", "[>]".bright_blue());
                 }
                 (None, prompt_text.clone())
             }
@@ -646,7 +719,15 @@ pub fn chat(
             show_reasoning,
         ) {
             Ok(response) => {
-                let cleaned = sanitize_response(&response);
+                // Response is already cleaned by generate_verbose if grammar validator is available
+                // Only apply sanitize_response if no grammar validator was used (fallback for JSON)
+                let cleaned = if grammar_file_path.is_some() {
+                    // Grammar validator already extracted/cleaned the query
+                    response
+                } else {
+                    // No grammar validator, use sanitize_response for JSON extraction
+                    sanitize_response(&response)
+                };
                 if debug {
                     print!("\r");
                     println!(
@@ -662,7 +743,7 @@ pub fn chat(
             Err(e) => {
                 if debug {
                     print!("\r");
-                    println!("{} Error: {}", "✗".bright_red(), e);
+                    println!("{} Error: {}", "[X]".bright_red(), e);
                 } else {
                     eprintln!("Error: {}", e);
                 }
@@ -714,7 +795,7 @@ pub fn chat(
                 println!("Loaded experts:");
                 for (idx, expert) in loaded_experts.iter().enumerate() {
                     let marker = if Some(idx) == current_expert_idx {
-                        "→"
+                        "[>]"
                     } else {
                         " "
                     };
@@ -729,7 +810,7 @@ pub fn chat(
             if loaded_experts.is_empty() {
                 println!(
                     "{} No experts loaded. Using base model only.",
-                    "⚠️".bright_yellow()
+                    "[!]".bright_yellow()
                 );
                 println!();
                 continue;
@@ -740,17 +821,17 @@ pub fn chat(
                 current_expert_idx = Some(idx);
                 println!(
                     "{} Switched to expert: {}",
-                    "✓".bright_green(),
+                    "[OK]".bright_green(),
                     expert_name.bright_cyan()
                 );
 
                 // TODO: Load adapter for this expert
                 println!(
                     "{} Note: Adapter hot-swap not yet implemented",
-                    "⚠️".bright_yellow()
+                    "[!]".bright_yellow()
                 );
             } else {
-                println!("{} Expert not found: {}", "✗".bright_red(), expert_name);
+                println!("{} Expert not found: {}", "[X]".bright_red(), expert_name);
             }
             println!();
             continue;
@@ -772,7 +853,7 @@ pub fn chat(
                             .map(|active| active == name.as_str())
                             .unwrap_or(false)
                         {
-                            "→"
+                            "[>]"
                         } else {
                             " "
                         };
@@ -783,7 +864,7 @@ pub fn chat(
                 continue;
             } else if soft_cmd == "none" {
                 engine.activate_soft_prompt(None);
-                println!("{} Soft prompt deactivated", "✓".bright_green());
+                println!("{} Soft prompt deactivated", "[OK]".bright_green());
                 println!();
                 continue;
             } else {
@@ -793,11 +874,11 @@ pub fn chat(
                     engine.activate_soft_prompt(Some(soft_cmd));
                     println!(
                         "{} Activated soft prompt: {}",
-                        "✓".bright_green(),
+                        "[OK]".bright_green(),
                         soft_cmd.bright_cyan()
                     );
                 } else {
-                    println!("{} Soft prompt not found: {}", "✗".bright_red(), soft_cmd);
+                    println!("{} Soft prompt not found: {}", "[X]".bright_red(), soft_cmd);
                 }
                 println!();
                 continue;
@@ -846,7 +927,7 @@ pub fn chat(
             }
             Err(e) => {
                 print!("\r");
-                println!("{} Error: {}", "✗".bright_red(), e);
+                println!("{} Error: {}", "[X]".bright_red(), e);
             }
         }
 

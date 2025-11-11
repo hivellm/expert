@@ -226,7 +226,7 @@ pub fn train(
     // Start training
     let start_time = Instant::now();
 
-    println!("{}", "🚀 Starting training...".bright_green().bold());
+    println!("{}", "[*] Starting training...".bright_green().bold());
     println!();
 
     // Disable spinner - it causes conflicts with Python progress bars
@@ -256,7 +256,7 @@ pub fn train(
             println!();
             println!(
                 "{}",
-                "✅ Training completed successfully!".bright_green().bold()
+                "[OK] Training completed successfully!".bright_green().bold()
             );
             println!();
             println!("  Duration: {:.2} hours", duration.as_secs_f32() / 3600.0);
@@ -277,7 +277,7 @@ pub fn train(
         }
         Err(e) => {
             println!();
-            println!("{}", "❌ Training failed!".bright_red().bold());
+            println!("{}", "[X] Training failed!".bright_red().bold());
             println!("  Error: {}", e);
             println!();
             Err(e)

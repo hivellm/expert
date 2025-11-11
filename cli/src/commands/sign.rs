@@ -15,7 +15,7 @@ use crate::error::{Error, Result};
 use crate::manifest::Manifest;
 
 pub fn sign(expert_path: PathBuf, key_path: PathBuf) -> Result<()> {
-    println!("{}", "✍️  Signing Expert Package".bright_cyan().bold());
+    println!("{}", "Signing Expert Package".bright_cyan().bold());
     println!(
         "{}",
         "═══════════════════════════════════════".bright_cyan()
@@ -33,7 +33,7 @@ pub fn sign(expert_path: PathBuf, key_path: PathBuf) -> Result<()> {
     // Load private key
     println!(
         "  {} {}",
-        "🔑".bright_blue(),
+        "[*]".bright_blue(),
         "Loading signing key...".bright_white()
     );
     let key_data = fs::read(&key_path)
@@ -50,7 +50,7 @@ pub fn sign(expert_path: PathBuf, key_path: PathBuf) -> Result<()> {
 
     println!(
         "  {} Public key: {}",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         hex::encode(verifying_key.to_bytes()).bright_white()
     );
     println!();
@@ -58,7 +58,7 @@ pub fn sign(expert_path: PathBuf, key_path: PathBuf) -> Result<()> {
     // Extract package to temporary directory
     println!(
         "  {} {}",
-        "📦".bright_blue(),
+        "[*]".bright_blue(),
         "Extracting package...".bright_white()
     );
     let temp_dir = std::env::temp_dir().join(format!(
@@ -83,17 +83,17 @@ pub fn sign(expert_path: PathBuf, key_path: PathBuf) -> Result<()> {
 
     println!(
         "  {} Expert: {}",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         manifest.name.bright_white()
     );
     println!(
         "  {} Version: {}",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         manifest.version.bright_white()
     );
     println!(
         "  {} Schema: {}",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         manifest.schema_version.bright_white()
     );
     println!();
@@ -101,7 +101,7 @@ pub fn sign(expert_path: PathBuf, key_path: PathBuf) -> Result<()> {
     // Calculate hashes of all files in package
     println!(
         "  {} {}",
-        "🔐".bright_blue(),
+        "[*]".bright_blue(),
         "Computing file hashes...".bright_white()
     );
     let mut file_hashes: HashMap<String, String> = HashMap::new();
@@ -123,7 +123,7 @@ pub fn sign(expert_path: PathBuf, key_path: PathBuf) -> Result<()> {
             file_hashes.insert(file_name.clone(), hash_hex.clone());
             println!(
                 "    {} {} - sha256:{}",
-                "✓".bright_green(),
+                "[OK]".bright_green(),
                 file_name.bright_white(),
                 &hash_hex[..16].bright_yellow()
             );
@@ -154,7 +154,7 @@ pub fn sign(expert_path: PathBuf, key_path: PathBuf) -> Result<()> {
                 file_hashes.insert(relative_path.clone(), hash_hex.clone());
                 println!(
                     "    {} {} - sha256:{}",
-                    "✓".bright_green(),
+                    "[OK]".bright_green(),
                     relative_path.bright_white(),
                     &hash_hex[..16].bright_yellow()
                 );
@@ -165,7 +165,7 @@ pub fn sign(expert_path: PathBuf, key_path: PathBuf) -> Result<()> {
     println!();
     println!(
         "  {} Files hashed: {}",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         file_hashes.len().to_string().bright_white()
     );
     println!();
@@ -183,7 +183,7 @@ pub fn sign(expert_path: PathBuf, key_path: PathBuf) -> Result<()> {
     // Sign the message
     println!(
         "  {} {}",
-        "✍️".bright_blue(),
+        "[*]".bright_blue(),
         "Generating signature...".bright_white()
     );
     let signature = signing_key.sign(message.as_bytes());
@@ -191,7 +191,7 @@ pub fn sign(expert_path: PathBuf, key_path: PathBuf) -> Result<()> {
 
     println!(
         "  {} Signature: {}",
-        "✓".bright_green(),
+        "[OK]".bright_green(),
         &signature_hex[..32].bright_white()
     );
     println!();
@@ -211,18 +211,18 @@ pub fn sign(expert_path: PathBuf, key_path: PathBuf) -> Result<()> {
 
     // Save updated manifest
     manifest.save(&manifest_path)?;
-    println!("  {} Manifest updated with signature", "✓".bright_green());
+    println!("  {} Manifest updated with signature", "[OK]".bright_green());
 
     // Save signature to separate file
     let sig_path = temp_dir.join("signature.sig");
     fs::write(&sig_path, &signature_hex)?;
-    println!("  {} signature.sig created", "✓".bright_green());
+    println!("  {} signature.sig created", "[OK]".bright_green());
     println!();
 
     // Re-package with signature
     println!(
         "  {} {}",
-        "📦".bright_blue(),
+        "[*]".bright_blue(),
         "Re-packaging with signature...".bright_white()
     );
 
@@ -259,22 +259,22 @@ pub fn sign(expert_path: PathBuf, key_path: PathBuf) -> Result<()> {
     println!();
     println!(
         "{}",
-        "✅ Package signed successfully!".bright_green().bold()
+        "[OK] Package signed successfully!".bright_green().bold()
     );
     println!(
         "  {} File: {}",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         expert_path.display().to_string().bright_white()
     );
-    println!("  {} Algorithm: Ed25519", "→".bright_blue());
+    println!("  {} Algorithm: Ed25519", "[>]".bright_blue());
     println!(
         "  {} Signature: {}...",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         &signature_hex[..32].bright_white()
     );
     println!(
         "  {} Public Key: {}...",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         &pubkey_hex[..32].bright_white()
     );
 
@@ -282,7 +282,7 @@ pub fn sign(expert_path: PathBuf, key_path: PathBuf) -> Result<()> {
 }
 
 pub fn keygen(output_path: PathBuf, name: Option<String>) -> Result<()> {
-    println!("{}", "🔑 Generating Signing Key".bright_cyan().bold());
+    println!("{}", "Generating Signing Key".bright_cyan().bold());
     println!(
         "{}",
         "═══════════════════════════════════════".bright_cyan()
@@ -298,7 +298,7 @@ pub fn keygen(output_path: PathBuf, name: Option<String>) -> Result<()> {
     fs::write(&output_path, signing_key.to_bytes())?;
     println!(
         "  {} Private key saved: {}",
-        "✓".bright_green(),
+        "[OK]".bright_green(),
         output_path.display().to_string().bright_white()
     );
 
@@ -308,38 +308,38 @@ pub fn keygen(output_path: PathBuf, name: Option<String>) -> Result<()> {
     fs::write(&pubkey_path, format!("ed25519:{}", pubkey_hex))?;
     println!(
         "  {} Public key saved: {}",
-        "✓".bright_green(),
+        "[OK]".bright_green(),
         pubkey_path.display().to_string().bright_white()
     );
 
     println!();
     println!("{}", "Key Information:".bright_blue().bold());
-    println!("  {} Algorithm: Ed25519", "→".bright_blue());
+    println!("  {} Algorithm: Ed25519", "[>]".bright_blue());
     println!(
         "  {} Public Key: {}",
-        "→".bright_blue(),
+        "[>]".bright_blue(),
         pubkey_hex.bright_white()
     );
 
     if let Some(ref owner_name) = name {
         println!(
             "  {} Owner: {}",
-            "→".bright_blue(),
+            "[>]".bright_blue(),
             owner_name.bright_white()
         );
     }
 
     println!();
-    println!("{}", "⚠️  IMPORTANT:".bright_yellow().bold());
+    println!("{}", "[!] IMPORTANT:".bright_yellow().bold());
     println!(
         "  {} Keep the private key (.pem) SECRET",
-        "→".bright_yellow()
+        "[>]".bright_yellow()
     );
     println!(
         "  {} Share the public key (.pub) with users",
-        "→".bright_yellow()
+        "[>]".bright_yellow()
     );
-    println!("  {} Backup the private key securely", "→".bright_yellow());
+    println!("  {} Backup the private key securely", "[>]".bright_yellow());
 
     Ok(())
 }

@@ -518,6 +518,10 @@ if __name__ == "__main__":
 - Always use `format_qwen3()` function to ensure correct format
 - Output must have a `text` field with Qwen3-formatted conversation
 - Format: `<|im_start|>role\ncontent<|im_end|>` (no spaces after role name)
+- **Qwen3 Hybrid Reasoning**: For Qwen3 models, use 75% reasoning + 25% direct outputs
+  - Wrap 75% of examples in `<think>...</think>` blocks with brief reasoning statements
+  - Keep 25% as direct query-only outputs
+  - This maintains compatibility with Qwen3's hybrid reasoning capabilities
 - Ensure compatibility: Functions should support both Qwen3 and legacy ChatML formats for backward compatibility
 
 ### Dataset Requirements
@@ -528,6 +532,10 @@ if __name__ == "__main__":
 - **Validation**: All examples should be manually reviewed
 - **Format consistency**: All examples must use Qwen3 native format (`<|im_start|>/<|im_end|>`)
 - **Field requirement**: All examples must have a `text` field with Qwen3-formatted conversation
+- **Qwen3 Hybrid Reasoning**: Use 75% reasoning + 25% direct outputs
+  - 75% of examples should include `<think>...</think>` blocks with brief reasoning
+  - 25% should be direct query-only outputs
+  - This ensures compatibility with Qwen3's hybrid reasoning training approach
 
 ---
 

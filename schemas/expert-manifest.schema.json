@@ -303,8 +303,8 @@
     },
     "Adapter": {
       "type": "object",
-      "description": "Adapter configuration (LoRA, DoRA, IA³, LoKr)",
-      "required": ["type", "target_modules", "path"],
+      "description": "Adapter configuration (LoRA, DoRA, IA³, LoKr). Adapter weights are automatically discovered in expert root directory (adapter_model.safetensors).",
+      "required": ["type", "target_modules"],
       "properties": {
         "type": {
           "type": "string",
@@ -352,10 +352,6 @@
         "use_dora": {
           "type": "boolean",
           "description": "Enable DoRA (weight decomposition)"
-        },
-        "path": {
-          "type": "string",
-          "description": "Relative path to adapter weights"
         },
         "checkpoint_step": {
           "type": "integer",

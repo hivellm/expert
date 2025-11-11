@@ -458,6 +458,7 @@ expert-cli chat --experts graph --prompt "Find all people older than 30"
 - ✅ Expert packaging (.expert tar.gz format)
 - ✅ Expert installation from packages
 - ✅ Registry system for tracking installed experts
+- ✅ **Automatic adapter discovery**: Adapters automatically found in expert root (`adapter_model.safetensors`)
 - ✅ One-shot mode (--prompt) for scripting
 - ✅ Comprehensive test suite (5 automated test scripts)
 

@@ -138,7 +138,7 @@ impl QwenEngine {
         verbose: bool,
     ) -> Result<Self> {
         if verbose {
-            println!("📦 Loading Qwen3 model with adapter");
+            println!("[*] Loading Qwen3 model with adapter");
             println!("   Base: {}", model_path.display());
             println!("   Adapter: {}", adapter_path.display());
             println!("   Type: {}", adapter_type_str);
@@ -156,7 +156,7 @@ impl QwenEngine {
             _ => {
                 if verbose {
                     println!(
-                        "   ⚠️  Unknown adapter type '{}', defaulting to DoRA",
+                        "   [!] Unknown adapter type '{}', defaulting to DoRA",
                         adapter_type_str
                     );
                 }
@@ -182,7 +182,7 @@ impl QwenEngine {
         let merged_path = Self::merge_adapter_weights(model_path, &adapter, verbose)?;
 
         if verbose {
-            println!("✅ Weights merged");
+            println!("[OK] Weights merged");
             println!("   Loading merged model...");
         }
 
@@ -208,7 +208,7 @@ impl QwenEngine {
         verbose: bool,
     ) -> Result<Self> {
         if verbose {
-            println!("📦 Loading Qwen3 model from: {}", model_path.display());
+            println!("[*] Loading Qwen3 model from: {}", model_path.display());
         }
 
         // Log runtime hints if provided
@@ -298,7 +298,7 @@ impl QwenEngine {
         };
 
         if verbose {
-            println!("✅ Config loaded");
+            println!("[OK] Config loaded");
             println!("   Layers: {}", config.num_hidden_layers);
             println!("   Heads: {}", config.num_attention_heads);
             println!("   Head dim: {}", config.head_dim);
@@ -318,7 +318,7 @@ impl QwenEngine {
             .map_err(|e| anyhow!("Failed to load tokenizer: {}", e))?;
 
         if verbose {
-            println!("✅ Tokenizer loaded");
+            println!("[OK] Tokenizer loaded");
             println!("   Loading model weights...");
         }
         let weights_file = model_path.join("model.safetensors");
@@ -352,7 +352,7 @@ impl QwenEngine {
         let model = Qwen3Model::load(vb, &model_config)?;
 
         if verbose {
-            println!("✅ Qwen3 model loaded");
+            println!("[OK] Qwen3 model loaded");
             println!("   Device: {:?}", device);
             println!("   Dtype: {:?}", dtype);
         }
@@ -453,7 +453,7 @@ impl QwenEngine {
 
         let model = Qwen3Model::load(vb, &model_config)?;
 
-        println!("✅ Qwen3 model loaded");
+        println!("[OK] Qwen3 model loaded");
 
         Ok(Self {
             model,
@@ -530,7 +530,7 @@ impl QwenEngine {
         // For now, we'll use a placeholder - real implementation would require
         // modifying the model to allow weight extraction.
 
-        println!("⚠️  Base weights saving not fully implemented - requires model weight access");
+        println!("[!] Base weights saving not fully implemented - requires model weight access");
         Ok(())
     }
 
@@ -550,7 +550,7 @@ impl QwenEngine {
         // For now, just mark as current (real implementation would swap weights)
         self.current_adapter = Some(adapter_name.to_string());
 
-        println!("🔄 Hot-swapped to adapter: {}", adapter_name);
+        println!("[*] Hot-swapped to adapter: {}", adapter_name);
         Ok(())
     }
 
@@ -579,11 +579,11 @@ impl QwenEngine {
 
                 self.load_soft_prompt(&soft_prompt.name, &prompt_text)?;
                 println!(
-                    "✅ Loaded soft prompt: {} ({} tokens)",
+                    "[OK] Loaded soft prompt: {} ({} tokens)",
                     soft_prompt.name, soft_prompt.tokens
                 );
             } else {
-                println!("⚠️  Soft prompt file not found: {}", prompt_path.display());
+                println!("[!] Soft prompt file not found: {}", prompt_path.display());
             }
         }
         Ok(())
@@ -913,13 +913,13 @@ impl QwenEngine {
                     // Validate the extracted query
                     if let Ok(is_valid) = validator.validate(&cleaned) {
                         if !is_valid && verbose {
-                            eprintln!("⚠️  Warning: Generated output failed grammar validation");
+                            eprintln!("[!] Warning: Generated output failed grammar validation");
                         }
                     }
                 }
                 Err(e) => {
                     if verbose {
-                        eprintln!("⚠️  Warning: Failed to extract query: {:?}", e);
+                        eprintln!("[!] Warning: Failed to extract query: {:?}", e);
                     }
                 }
             }

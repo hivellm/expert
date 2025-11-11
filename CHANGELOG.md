@@ -5,7 +5,25 @@ All notable changes to the HiveLLM Expert System will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2025-11-08
+
+### Changed
+- **CLI version bump**: Updated to v0.3.0
+- **Removed emojis**: All emoji characters removed from CLI output for better terminal compatibility
+- **Adapter path resolution**: Automatic adapter discovery (see v0.3.0 adapter changes below)
+
+### Changed - 2025-11-08
+
+#### Adapter Path Resolution
+- **Automatic adapter discovery**: Removed `path` field from adapter definitions in manifests
+  - Adapters are now automatically discovered in the root of expert directory
+  - Standard location: `adapter_model.safetensors` must be in root (`expert_dir/adapter_model.safetensors`)
+  - Expert loading fails if adapter not found in root (no fallback to subdirectories)
+  - Simplifies manifest structure and enforces consistent packaging
+- **CLI adapter loading**: Updated to search only in expert root directory
+  - Removed multi-location fallback logic (was checking `expert_dir/{path}`, `expert_dir/weights/{path}`, `expert_dir`)
+  - Clear error message when adapter not found: "Adapter not found in root: {path}/adapter_model.safetensors"
+  - Ensures all experts follow standard packaging format
 
 ### Added - 2025-11-06
 

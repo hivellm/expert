@@ -36,7 +36,7 @@ pub fn run(query: &str, top_k: usize, verbose: bool, experts_dir: &PathBuf) -> R
                     match Manifest::load(&manifest_path) {
                         Ok(manifest) => {
                             if verbose {
-                                println!("  ✓ Loaded: {}", manifest.name);
+                                println!("  [OK] Loaded: {}", manifest.name);
                             }
                             router.add_expert(&manifest);
                             loaded_count += 1;
@@ -44,7 +44,7 @@ pub fn run(query: &str, top_k: usize, verbose: bool, experts_dir: &PathBuf) -> R
                         Err(e) => {
                             if verbose {
                                 eprintln!(
-                                    "  ⚠️  Skipped {}: {}",
+                                    "  [!] Skipped {}: {}",
                                     path.file_name().unwrap().to_string_lossy(),
                                     e
                                 );
@@ -52,7 +52,7 @@ pub fn run(query: &str, top_k: usize, verbose: bool, experts_dir: &PathBuf) -> R
                         }
                     }
                 } else if verbose {
-                    println!("  ⚠️  No manifest: {}", path.display());
+                    println!("  [!] No manifest: {}", path.display());
                 }
             }
         }
@@ -65,22 +65,22 @@ pub fn run(query: &str, top_k: usize, verbose: bool, experts_dir: &PathBuf) -> R
     println!();
 
     // Route query
-    println!("🔍 Query: {}", query.bright_white());
+    println!("[*] Query: {}", query.bright_white());
     println!();
 
     let results = router.route(&query, top_k);
 
     if results.is_empty() {
-        println!("{}", "❌ No experts matched the query".bright_red());
+        println!("{}", "[X] No experts matched the query".bright_red());
         println!();
-        println!("💡 Try:");
+        println!("[*] Try:");
         println!("  - Using different keywords");
         println!("  - Being more specific");
         println!("  - Using --verbose to see expert keywords");
         return Ok(());
     }
 
-    println!("🎯 Top {} matches:", top_k.to_string().bright_white());
+    println!("[*] Top {} matches:", top_k.to_string().bright_white());
     println!();
 
     for (i, result) in results.iter().enumerate() {
@@ -103,7 +103,7 @@ pub fn run(query: &str, top_k: usize, verbose: bool, experts_dir: &PathBuf) -> R
     }
 
     println!();
-    println!("💡 Use this expert:");
+    println!("[*] Use this expert:");
     println!(
         "   {}",
         format!("expert-cli chat --experts {}", results[0].expert_name).bright_cyan()

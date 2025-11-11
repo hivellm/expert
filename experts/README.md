@@ -111,6 +111,10 @@ Create your training dataset in JSONL format (`datasets/train.jsonl`):
 - Include diverse examples covering all use cases
 - Validate JSONL format before training
 - Consider adding synthetic data for edge cases
+- **Qwen3 Hybrid Reasoning**: For Qwen3 models, use 75% reasoning + 25% direct outputs
+  - 75% of examples should include `<think>...</think>` blocks with brief reasoning statements
+  - 25% should be direct query-only outputs
+  - This ensures compatibility with Qwen3's hybrid reasoning training approach
 
 ### Step 4: Create Test Cases
 

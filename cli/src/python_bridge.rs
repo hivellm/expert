@@ -56,7 +56,7 @@ impl PythonTrainer {
                 unsafe {
                     env::set_var("VIRTUAL_ENV", &venv);
                 }
-                println!("✅ Auto-detected venv: {}", venv.display());
+                println!("[OK] Auto-detected venv: {}", venv.display());
 
                 // Also update PATH to include venv Scripts/bin
                 #[cfg(windows)]
@@ -89,7 +89,7 @@ impl PythonTrainer {
         // Try to detect active virtual environment from VIRTUAL_ENV env var
         let venv_site_packages = if let Ok(venv_path) = std::env::var("VIRTUAL_ENV") {
             let venv_root = PathBuf::from(venv_path);
-            println!("🔍 Detected active venv: {}", venv_root.display());
+            println!("[*] Detected active venv: {}", venv_root.display());
 
             // Windows: venv\Lib\site-packages
             // Unix: venv/lib/python3.x/site-packages
@@ -123,26 +123,26 @@ impl PythonTrainer {
                 current_dir.join(".venv").join("Lib").join("site-packages"),
             ];
 
-            println!("🔍 No active venv detected, searching in current directory...");
+            println!("[*] No active venv detected, searching in current directory...");
             candidates.into_iter().find(|p| p.exists())
         };
 
         if let Some(sp_path) = venv_site_packages {
             if sp_path.exists() {
-                println!("✅ Found venv at: {}", sp_path.display());
+                println!("[OK] Found venv at: {}", sp_path.display());
                 let venv_str = sp_path.to_str().ok_or_else(|| {
                     crate::error::Error::Training("Invalid venv path".to_string())
                 })?;
                 path_list.insert(0, venv_str)?;
-                println!("✅ Added venv site-packages to sys.path");
+                println!("[OK] Added venv site-packages to sys.path");
             } else {
                 println!(
-                    "⚠️  Warning: venv path does not exist: {}",
+                    "[!] Warning: venv path does not exist: {}",
                     sp_path.display()
                 );
             }
         } else {
-            println!("⚠️  Warning: No Python virtual environment found");
+            println!("[!] Warning: No Python virtual environment found");
             println!("   Activate a venv or ensure torch is installed globally");
         }
 

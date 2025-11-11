@@ -115,7 +115,7 @@ impl ExpertManager {
         expert.last_used = Some(std::time::Instant::now());
 
         println!(
-            "✅ Loaded expert '{}' in {:.2}ms",
+            "[OK] Loaded expert '{}' in {:.2}ms",
             name,
             load_time.as_secs_f64() * 1000.0
         );
@@ -138,7 +138,7 @@ impl ExpertManager {
         expert.loaded = false;
         expert.load_time = None;
 
-        println!("✅ Unloaded expert '{}'", name);
+        println!("[OK] Unloaded expert '{}'", name);
 
         Ok(())
     }
@@ -194,7 +194,7 @@ impl ExpertManager {
         // Pre-load top N
         for (name, _) in experts_to_load.iter().take(self.max_loaded) {
             if let Err(e) = self.load_expert(name, use_cuda) {
-                eprintln!("⚠️ Failed to pre-load expert '{}': {}", name, e);
+                eprintln!("[!] Failed to pre-load expert '{}': {}", name, e);
             }
         }
 

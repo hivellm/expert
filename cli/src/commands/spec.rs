@@ -9,6 +9,8 @@ pub fn parse_expert_spec(spec: &str) -> (String, Option<String>) {
 
 pub fn canonical_name(name: &str) -> String {
     let trimmed = name.trim();
+    // Remove "expert-" prefix if present, then add it back to normalize
+    // This ensures both "neo4j" and "expert-neo4j" work correctly
     if trimmed.starts_with("expert-") {
         trimmed.to_string()
     } else {
@@ -57,6 +59,21 @@ mod tests {
         assert_eq!(canonical_name("sql"), "expert-sql");
         assert_eq!(canonical_name("expert-sql"), "expert-sql");
         assert_eq!(canonical_name("  sql  "), "expert-sql");
+        // Test that both formats work
+        assert_eq!(canonical_name("neo4j"), "expert-neo4j");
+        assert_eq!(canonical_name("expert-neo4j"), "expert-neo4j");
+    }
+    
+    #[test]
+    fn test_parse_expert_spec_neo4j_variants() {
+        // Test that both "neo4j" and "expert-neo4j" work
+        let (name1, version1) = parse_expert_spec("neo4j@0.2.3");
+        assert_eq!(name1, "expert-neo4j");
+        assert_eq!(version1, Some("0.2.3".to_string()));
+        
+        let (name2, version2) = parse_expert_spec("expert-neo4j@0.2.3");
+        assert_eq!(name2, "expert-neo4j");
+        assert_eq!(version2, Some("0.2.3".to_string()));
     }
 
     #[test]

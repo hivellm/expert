@@ -62,7 +62,7 @@ impl LoraAdapter {
         let weights = candle_core::safetensors::load(&adapter_path, &Device::Cpu)?;
 
         if verbose {
-            println!("✅ Loaded {} weight tensors", weights.len());
+            println!("[OK] Loaded {} weight tensors", weights.len());
         }
 
         // Parse config (if adapter_config.json exists)

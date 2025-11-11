@@ -327,7 +327,7 @@ fn verify_signature(expert_dir: &Path, manifest: &Manifest) -> Result<(), Error>
         return Ok(());
     }
 
-    println!("  [→] Verifying signature...");
+    println!("  [>] Verifying signature...");
 
     // Check if manifest has integrity section
     if manifest.integrity.is_none() {
@@ -437,10 +437,10 @@ fn resolve_and_install_dependencies(
         return Ok(());
     }
 
-    println!("  [→] Found {} dependencies", dependencies.len());
+    println!("  [>] Found {} dependencies", dependencies.len());
 
     for dep in dependencies {
-        println!("  [→] Checking dependency: {}", dep);
+        println!("  [>] Checking dependency: {}", dep);
 
         // Parse dependency (format: "expert-name@version" or "expert-name@>=version")
         let parts: Vec<&str> = dep.split('@').collect();
@@ -463,7 +463,7 @@ fn resolve_and_install_dependencies(
         }
 
         // Dependency not installed, try to install
-        println!("  [→] Installing dependency: {}", dep_name);
+        println!("  [>] Installing dependency: {}", dep_name);
 
         // Construct Git URL (assume GitHub hivellm org)
         let dep_source = format!("git+https://github.com/hivellm/{}.git", dep_name);
@@ -491,13 +491,13 @@ fn create_expert_entry(
         .canonicalize()
         .unwrap_or_else(|_| install_path.to_path_buf());
 
-    // Collect adapters
+    // Collect adapters (path is automatically resolved to expert root)
     let adapters = if let Some(ref adapters) = manifest.adapters {
         adapters
             .iter()
             .map(|a| AdapterEntry {
                 adapter_type: a.adapter_type.clone(),
-                path: PathBuf::from(&a.path),
+                path: resolved_path.clone(), // Adapters are in expert root
                 size_bytes: a.size_bytes.unwrap_or(0),
                 sha256: a.sha256.clone(),
             })
@@ -510,7 +510,7 @@ fn create_expert_entry(
                     .iter()
                     .map(|a| AdapterEntry {
                         adapter_type: a.adapter_type.clone(),
-                        path: PathBuf::from(&a.path),
+                        path: resolved_path.clone(), // Adapters are in expert root
                         size_bytes: a.size_bytes.unwrap_or(0),
                         sha256: a.sha256.clone(),
                     })

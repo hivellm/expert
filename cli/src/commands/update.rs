@@ -59,7 +59,7 @@ pub fn update(name: &str, force: bool) -> Result<(), Error> {
         return crate::commands::install::install(&expert.source, false);
     }
 
-    println!("  {} Pulling latest changes...", "[→]");
+    println!("  {} Pulling latest changes...", "[>]");
 
     let output = Command::new("git")
         .arg("-C")

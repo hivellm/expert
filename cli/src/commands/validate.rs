@@ -10,7 +10,7 @@ use crate::error::{Error, Result};
 use crate::manifest::{Manifest, SchemaVersion};
 
 pub fn validate(expert_path: PathBuf, test_set: Option<PathBuf>, verbose: bool) -> Result<()> {
-    println!("{}", "🔍 Expert Validation".bright_cyan().bold());
+    println!("{}", "Expert Validation".bright_cyan().bold());
     println!(
         "{}",
         "═══════════════════════════════════════".bright_cyan()
@@ -21,12 +21,12 @@ pub fn validate(expert_path: PathBuf, test_set: Option<PathBuf>, verbose: bool) 
     let (manifest_path, is_packaged, temp_dir) = if expert_path.is_dir() {
         (expert_path.join("manifest.json"), false, None)
     } else if expert_path.extension().and_then(|s| s.to_str()) == Some("expert") {
-        println!("  {} Extracting packaged expert...", "→".bright_blue());
+        println!("  {} Extracting packaged expert...", "[>]".bright_blue());
         let (extracted_dir, temp_dir_handle) = extract_expert_package(&expert_path)?;
         let manifest_path = extracted_dir.join("manifest.json");
         println!(
             "  {} Package extracted to temporary directory",
-            "✓".bright_green()
+            "[OK]".bright_green()
         );
         println!();
         (manifest_path, true, Some((extracted_dir, temp_dir_handle)))
@@ -45,35 +45,35 @@ pub fn validate(expert_path: PathBuf, test_set: Option<PathBuf>, verbose: bool) 
         )));
     }
 
-    println!("  {} Loading manifest...", "→".bright_blue());
+    println!("  {} Loading manifest...", "[>]".bright_blue());
     let manifest = Manifest::load(&manifest_path)?;
     let schema_version = manifest.get_schema_version();
 
     println!(
         "  {} Expert: {}",
-        "✓".bright_green(),
+        "[OK]".bright_green(),
         manifest.name.bright_white()
     );
     println!(
         "  {} Version: {}",
-        "✓".bright_green(),
+        "[OK]".bright_green(),
         manifest.version.bright_white()
     );
     println!(
         "  {} Schema: {}",
-        "✓".bright_green(),
+        "[OK]".bright_green(),
         schema_version.as_str().bright_white()
     );
     println!();
 
     // Validate manifest structure
-    println!("  {} Validating manifest structure...", "→".bright_blue());
+    println!("  {} Validating manifest structure...", "[>]".bright_blue());
     validate_manifest(&manifest, schema_version)?;
-    println!("  {} Manifest structure is valid", "✓".bright_green());
+    println!("  {} Manifest structure is valid", "[OK]".bright_green());
     println!();
 
     // Validate adapters
-    println!("  {} Validating adapters...", "→".bright_blue());
+    println!("  {} Validating adapters...", "[>]".bright_blue());
     let expert_dir = if let Some(ref temp) = temp_dir {
         &temp.0
     } else {
@@ -86,18 +86,18 @@ pub fn validate(expert_path: PathBuf, test_set: Option<PathBuf>, verbose: bool) 
         validate_packaged_files(&manifest, expert_dir, verbose)?;
     }
 
-    println!("  {} All adapters validated", "✓".bright_green());
+    println!("  {} All adapters validated", "[OK]".bright_green());
     println!();
 
     // Validate base model (if schema v1.0)
     if schema_version == SchemaVersion::V1_0 {
         if let Some(ref base_model) = manifest.base_model {
-            println!("  {} Validating base model reference...", "→".bright_blue());
+            println!("  {} Validating base model reference...", "[>]".bright_blue());
             println!("    Base Model: {}", base_model.name);
             if let Some(ref quant) = base_model.quantization {
                 println!("    Quantization: {}", quant);
             }
-            println!("  {} Base model reference is valid", "✓".bright_green());
+            println!("  {} Base model reference is valid", "[OK]".bright_green());
             println!();
         }
     } else {
@@ -105,7 +105,7 @@ pub fn validate(expert_path: PathBuf, test_set: Option<PathBuf>, verbose: bool) 
         if let Some(ref base_models) = manifest.base_models {
             println!(
                 "  {} Validating base models ({} models)...",
-                "→".bright_blue(),
+                "[>]".bright_blue(),
                 base_models.len()
             );
             for model in base_models {
@@ -114,7 +114,7 @@ pub fn validate(expert_path: PathBuf, test_set: Option<PathBuf>, verbose: bool) 
                     println!("      Quantization: {}", quant);
                 }
             }
-            println!("  {} Base models validated", "✓".bright_green());
+            println!("  {} Base models validated", "[OK]".bright_green());
             println!();
         }
     }
@@ -123,7 +123,7 @@ pub fn validate(expert_path: PathBuf, test_set: Option<PathBuf>, verbose: bool) 
     if !manifest.capabilities.is_empty() {
         println!(
             "  {} Capabilities ({}):",
-            "→".bright_blue(),
+            "[>]".bright_blue(),
             manifest.capabilities.len()
         );
         for cap in &manifest.capabilities {
@@ -134,9 +134,9 @@ pub fn validate(expert_path: PathBuf, test_set: Option<PathBuf>, verbose: bool) 
 
     // Run test set if provided
     if let Some(test_set_path) = test_set {
-        println!("  {} Running test set validation...", "→".bright_blue());
+        println!("  {} Running test set validation...", "[>]".bright_blue());
         validate_test_set(&manifest, &test_set_path, verbose)?;
-        println!("  {} Test set validation passed", "✓".bright_green());
+        println!("  {} Test set validation passed", "[OK]".bright_green());
         println!();
     }
 
@@ -147,7 +147,7 @@ pub fn validate(expert_path: PathBuf, test_set: Option<PathBuf>, verbose: bool) 
     );
     println!(
         "  {} {}",
-        "✓".bright_green().bold(),
+        "[OK]".bright_green().bold(),
         "Expert validation passed!".bright_green().bold()
     );
     println!(
@@ -202,7 +202,7 @@ fn validate_packaged_files(manifest: &Manifest, expert_dir: &Path, verbose: bool
             )));
         }
         if verbose {
-            println!("      {} {}", "✓".bright_green(), file);
+            println!("      {} {}", "[OK]".bright_green(), file);
         }
     }
 
@@ -224,7 +224,8 @@ fn validate_packaged_files(manifest: &Manifest, expert_dir: &Path, verbose: bool
     };
 
     for adapter in adapters {
-        let adapter_path = expert_dir.join(&adapter.path);
+        // Adapters are automatically discovered in expert root directory
+        let adapter_path = &expert_dir;
 
         // Essential adapter files that must be present
         let essential_files = vec![
@@ -243,19 +244,18 @@ fn validate_packaged_files(manifest: &Manifest, expert_dir: &Path, verbose: bool
             if file_path.exists() {
                 found_count += 1;
                 if verbose {
-                    println!("      {} {}/{}", "✓".bright_green(), adapter.path, file);
+                    println!("      {} {}", "[OK]".bright_green(), file);
                 }
             } else if file == &"adapter_model.safetensors" || file == &"adapter_config.json" {
                 // Critical files
                 return Err(Error::Validation(format!(
                     "Critical adapter file missing: {}/{}",
-                    adapter.path, file
+                    adapter_path.display(), file
                 )));
             } else if verbose {
                 println!(
-                    "      {} {}/{} (optional, not found)",
-                    "⚠️ ".bright_yellow(),
-                    adapter.path,
+                    "      {} {} (optional, not found)",
+                    "[!] ".bright_yellow(),
                     file
                 );
             }
@@ -362,13 +362,8 @@ fn validate_adapters(manifest: &Manifest, expert_dir: &Path, verbose: bool) -> R
             println!("    Adapter {} ({}):", idx + 1, adapter.adapter_type);
         }
 
-        // Check adapter path exists
-        // For schema v2.0, paths are relative to weights/ directory
-        let adapter_path = if manifest.base_models.is_some() {
-            expert_dir.join("weights").join(&adapter.path)
-        } else {
-            expert_dir.join(&adapter.path)
-        };
+        // Adapters are automatically discovered in expert root directory
+        let adapter_path = &expert_dir;
 
         // For LoRA, check for adapter files
         if adapter.adapter_type == "lora" {
@@ -440,7 +435,7 @@ fn validate_adapters(manifest: &Manifest, expert_dir: &Path, verbose: bool) -> R
                     "[WARN]".bright_yellow()
                 );
             } else if verbose {
-                println!("      {} adapter_config.json found", "✓".bright_green());
+                println!("      {} adapter_config.json found", "[OK]".bright_green());
             }
         }
 
@@ -497,7 +492,7 @@ fn validate_test_set(_manifest: &Manifest, test_set_path: &Path, verbose: bool) 
     // This would require loading the model and running predictions
     println!(
         "    {} Inference testing not yet implemented",
-        "⚠️".bright_yellow()
+        "[!]".bright_yellow()
     );
 
     Ok(())

@@ -23,9 +23,11 @@ from .progress_testing import ProgressTestCallback
 # Import Unsloth if available
 try:
     from unsloth import FastLanguageModel
+    from unsloth import unsloth_train  # Fix for gradient accumulation
     USE_UNSLOTH = True
 except ImportError:
     USE_UNSLOTH = False
+    unsloth_train = None
 
 # Import psutil for system RAM monitoring
 try:

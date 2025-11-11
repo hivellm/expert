@@ -22,7 +22,7 @@ def extract_query_only(text: str, query_type: str = "auto") -> str:
     if not text or not text.strip():
         return ""
     
-    # Remove reasoning blocks
+    # Remove reasoning blocks (Qwen3 uses <think>...</think>, legacy uses <think>...</think>)
     text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL | re.IGNORECASE)
     
@@ -224,6 +224,9 @@ def sanitize_chatml_response(text: str, query_type: str = "auto") -> str:
     """
     Sanitize ChatML response to ensure query-only output.
     This should be applied during preprocessing to clean training data.
+    
+    Note: For Qwen3 training, preprocessing scripts should use 75% reasoning + 25% direct outputs.
+    Reasoning blocks use <think>...</think> tags (Qwen3 format).
     """
     # Extract from ChatML format if present
     if '<|im_start|>assistant' in text:
@@ -235,6 +238,10 @@ def sanitize_chatml_response(text: str, query_type: str = "auto") -> str:
         match = re.search(r'<\|assistant\|>\s*\n(.*?)\n<\|end\|>', text, re.DOTALL)
         if match:
             text = match.group(1).strip()
+    
+    # Remove reasoning blocks (Qwen3 uses <think>...</think>, legacy uses <think>...</think>)
+    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL | re.IGNORECASE)
     
     # Extract query only
     return extract_query_only(text, query_type)

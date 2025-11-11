@@ -24,7 +24,7 @@ pub fn generate(
     let manifest = Manifest::load(&manifest_path)?;
     println!(
         "  {} Loading manifest: {}",
-        "✓".bright_green(),
+        "[OK]".bright_green(),
         manifest.name
     );
 
@@ -36,14 +36,14 @@ pub fn generate(
         .as_ref()
         .ok_or_else(|| Error::Config("No dataset.generation config in manifest".to_string()))?;
 
-    println!("  {} Domain: {}", "→".bright_blue(), dataset_gen.domain);
-    println!("  {} Task: {}", "→".bright_blue(), dataset_gen.task);
+    println!("  {} Domain: {}", "[>]".bright_blue(), dataset_gen.domain);
+    println!("  {} Task: {}", "[>]".bright_blue(), dataset_gen.task);
 
     let total_count = count.unwrap_or(dataset_gen.count);
     let llm_provider = provider.unwrap_or_else(|| dataset_gen.provider.clone());
 
-    println!("  {} Provider: {}", "→".bright_blue(), llm_provider);
-    println!("  {} Count: {}", "→".bright_blue(), total_count);
+    println!("  {} Provider: {}", "[>]".bright_blue(), llm_provider);
+    println!("  {} Count: {}", "[>]".bright_blue(), total_count);
     println!();
 
     // Determine output path
@@ -52,11 +52,11 @@ pub fn generate(
 
     println!(
         "{}",
-        "⚠️  Dataset generation requires LLM API integration".bright_yellow()
+        "[!] Dataset generation requires LLM API integration".bright_yellow()
     );
     println!("   Please use Python scripts for now:");
-    println!("   → cd experts/{}", manifest.name);
-    println!("   → python generate_dataset.py");
+    println!("   [>] cd experts/{}", manifest.name);
+    println!("   [>] python generate_dataset.py");
     println!();
     println!("   Future: Will integrate with DeepSeek, Claude, and Cursor APIs");
     println!("   Output will be saved to: {}", output_path.display());
@@ -65,14 +65,14 @@ pub fn generate(
 }
 
 pub fn validate(dataset: PathBuf) -> Result<()> {
-    println!("{}", "✓ Dataset Validation".bright_cyan().bold());
+    println!("{}", "[OK] Dataset Validation".bright_cyan().bold());
     println!(
         "{}",
         "═══════════════════════════════════════".bright_blue()
     );
     println!();
 
-    println!("  {} Validating: {}", "→".bright_blue(), dataset.display());
+    println!("  {} Validating: {}", "[>]".bright_blue(), dataset.display());
 
     // Check file exists
     if !dataset.exists() {
@@ -87,7 +87,7 @@ pub fn validate(dataset: PathBuf) -> Result<()> {
     if ext != "jsonl" && ext != "json" {
         println!(
             "  {} Warning: Expected .jsonl or .json extension",
-            "⚠".bright_yellow()
+            "[!]".bright_yellow()
         );
     }
 
@@ -101,7 +101,7 @@ pub fn validate(dataset: PathBuf) -> Result<()> {
     let mut has_instruction = 0;
     let mut has_response = 0;
 
-    println!("  {} Checking JSONL format...", "→".bright_blue());
+    println!("  {} Checking JSONL format...", "[>]".bright_blue());
 
     for (idx, line) in reader.lines().enumerate() {
         let line = line?;
@@ -133,7 +133,7 @@ pub fn validate(dataset: PathBuf) -> Result<()> {
                 if error_count <= 5 {
                     println!(
                         "  {} Line {}: Invalid JSON - {}",
-                        "✗".bright_red(),
+                        "[X]".bright_red(),
                         idx + 1,
                         e
                     );
@@ -145,10 +145,10 @@ pub fn validate(dataset: PathBuf) -> Result<()> {
     println!();
     println!("{}", "Results:".bright_cyan().bold());
     println!("  Total lines: {}", line_count);
-    println!("  Valid JSON: {} {}", valid_count, "✓".bright_green());
+    println!("  Valid JSON: {} {}", valid_count, "[OK]".bright_green());
 
     if error_count > 0 {
-        println!("  Invalid JSON: {} {}", error_count, "✗".bright_red());
+        println!("  Invalid JSON: {} {}", error_count, "[X]".bright_red());
     }
 
     println!();
@@ -160,13 +160,13 @@ pub fn validate(dataset: PathBuf) -> Result<()> {
         println!();
         println!(
             "  {} Dataset appears valid for training",
-            "✓".bright_green()
+            "[OK]".bright_green()
         );
     } else {
         println!();
         println!(
             "  {} Warning: Dataset may be missing required fields",
-            "⚠".bright_yellow()
+            "[!]".bright_yellow()
         );
         println!("    Expected: instruction/question + response/output/answer");
     }
