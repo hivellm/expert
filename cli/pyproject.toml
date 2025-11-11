@@ -1,4 +1,4 @@
 [tool.codespell]
-skip = "*.lock,*.json,target,node_modules,.git,venv,venv_windows,__pycache__"
-ignore-words-list = "crate,ser,deser,ba,nd,te,dne,ue,keypair"
+skip = "*.lock,*.json,target,node_modules,.git,venv,venv_windows,__pycache__,pyproject.toml"
+ignore-words-list = "crate,ser,deser,keypair"
 
