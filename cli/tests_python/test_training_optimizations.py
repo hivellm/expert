@@ -10,7 +10,6 @@ def test_sdpa_qlora_enabled():
     """Verify SDPA works with QLoRA"""
     print("Testing SDPA + QLoRA compatibility...")
     
-    from expert_trainer import load_model_and_tokenizer
     from dataclasses import dataclass
     
     @dataclass

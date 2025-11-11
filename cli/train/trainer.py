@@ -51,9 +51,21 @@ def _format_text_for_sft(examples):
 def train_expert(config_dict: dict) -> None:
     """Main training function called from Rust"""
     
-    # Windows-specific memory optimizations
+    # CRITICAL: Windows stability configurations (must be set before any CUDA operations)
     if platform.system() == "Windows":
-        print("\n[WINDOWS] Applying memory optimizations for Windows...")
+        print("\n[WINDOWS] Applying critical stability configurations...")
+        
+        # CUDA memory allocation optimization
+        os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128,backend:cudaMallocAsync"
+        
+        # For debugging (can be removed in production for better performance)
+        # os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+        
+        # Avoid conflicts with Intel MKL
+        os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+        
+        print("   [OK] CUDA memory allocation configured")
+        print("   [OK] Intel MKL conflicts disabled")
         
         training = config_dict.get("training", {})
         
@@ -528,7 +540,21 @@ def train_expert(config_dict: dict) -> None:
     print("Starting Training")
     print("=" * 60 + "\n")
     
-    trainer.train(resume_from_checkpoint=config.resume_checkpoint)
+    # Use Unsloth's unsloth_train() to fix gradient accumulation issues
+    # This resolves the "Qwen3ForCausalLM does not accept `num_items_in_batch`" warning
+    use_unsloth_flag = getattr(config, 'use_unsloth', None)
+    if use_unsloth_flag and USE_UNSLOTH and unsloth_train is not None:
+        print("[UNSLOTH] Using unsloth_train() for optimized gradient accumulation")
+        print("   This fixes the 'num_items_in_batch' warning and improves training stability\n")
+        # unsloth_train() wraps trainer.train() and handles gradient accumulation properly
+        # It accepts the same parameters as trainer.train()
+        if config.resume_checkpoint:
+            trainer_stats = unsloth_train(trainer, resume_from_checkpoint=config.resume_checkpoint)
+        else:
+            trainer_stats = unsloth_train(trainer)
+    else:
+        # Standard training (fallback when Unsloth not available or disabled)
+        trainer.train(resume_from_checkpoint=config.resume_checkpoint)
     
     # Final VRAM cleanup after training
     print("\n[VRAM] Final cleanup after training...")

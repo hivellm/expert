@@ -6,7 +6,7 @@ param(
     [Parameter(Mandatory=$false)]
     [switch]$Coverage = $false,
     [Parameter(Mandatory=$false)]
-    [switch]$Verbose = $true
+    [switch]$VerboseOutput = $true
 )
 
 Write-Host "Python Tests Runner" -ForegroundColor Cyan
@@ -24,14 +24,15 @@ if (-not (Test-Path $venvPython)) {
 
 Write-Host ""
 
-# Change to cli directory
-$cliDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+# Change to cli directory (parent of tests_python)
+$scriptPath = $MyInvocation.MyCommand.Path
+$cliDir = Split-Path -Parent (Split-Path -Parent $scriptPath)
 Set-Location $cliDir
 
 # Build pytest command
 $pytestArgs = @()
 
-if ($Verbose) {
+if ($VerboseOutput) {
     $pytestArgs += "-v"
 }
 

@@ -707,7 +707,6 @@ mod tests {
                 scaling: Some("standard".to_string()),
                 dropout: Some(0.05),
                 use_dora: None,
-                path: "weights/adapter.safetensors".to_string(),
                 size_bytes: Some(8388608),
                 sha256: Some("def456".to_string()),
             }]),
@@ -818,7 +817,6 @@ mod tests {
                         scaling: Some("standard".to_string()),
                         dropout: Some(0.05),
                         use_dora: None,
-                        path: "weights/qwen3-0.6b/adapter.safetensors".to_string(),
                         size_bytes: Some(8388608),
                         sha256: Some("def456".to_string()),
                     }],
@@ -837,7 +835,6 @@ mod tests {
                         scaling: Some("standard".to_string()),
                         dropout: Some(0.05),
                         use_dora: None,
-                        path: "weights/qwen3-1.5b/adapter.safetensors".to_string(),
                         size_bytes: Some(16777216),
                         sha256: Some("uvw012".to_string()),
                     }],
@@ -1068,21 +1065,12 @@ mod tests {
 
     #[test]
     fn test_validate_v2_duplicate_weight_paths() {
-        let mut manifest = create_test_manifest_v2();
-
-        // Set duplicate path
-        if let Some(ref mut models) = manifest.base_models {
-            models[1].adapters[0].path = "weights/qwen3-0.6b/adapter.safetensors".to_string();
-        }
-
+        // NOTE: Path validation removed - adapters are automatically discovered in expert root
+        // This test is no longer applicable since path field doesn't exist
+        // All adapters are in the same location (expert root), so no path conflicts possible
+        let manifest = create_test_manifest_v2();
         let result = manifest.validate();
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Duplicate adapter path")
-        );
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -1209,7 +1197,6 @@ mod tests {
                 "alpha": 16,
                 "scaling": "standard",
                 "dropout": 0.05,
-                "path": "weights/adapter.safetensors",
                 "size_bytes": 1000,
                 "sha256": "hash"
             }],
@@ -1264,7 +1251,6 @@ mod tests {
                         "alpha": 16,
                         "scaling": "standard",
                         "dropout": 0.05,
-                        "path": "weights/qwen3-0.6b/adapter.safetensors",
                         "size_bytes": 1000,
                         "sha256": "hash"
                     }]
@@ -1281,7 +1267,6 @@ mod tests {
                         "alpha": 16,
                         "scaling": "standard",
                         "dropout": 0.05,
-                        "path": "weights/qwen3-1.5b/adapter.safetensors",
                         "size_bytes": 2000,
                         "sha256": "hash2"
                     }]
@@ -1336,7 +1321,6 @@ mod tests {
                 "alpha": 16,
                 "scaling": "standard",
                 "dropout": 0.05,
-                "path": "weights/adapter.safetensors",
                 "size_bytes": 1000,
                 "sha256": "hash"
             }],
@@ -1482,7 +1466,6 @@ mod tests {
                 scaling: Some("standard".to_string()),
                 dropout: Some(0.1),
                 use_dora: None,
-                path: "weights/qwen3-0.6b/adapter2.safetensors".to_string(),
                 size_bytes: Some(4194304),
                 sha256: Some("second_hash".to_string()),
             };
@@ -1511,7 +1494,6 @@ mod tests {
                 scaling: Some("standard".to_string()),
                 dropout: Some(0.05),
                 use_dora: None,
-                path: "weights/qwen3-3b/adapter.safetensors".to_string(),
                 size_bytes: Some(33554432),
                 sha256: Some("third_adapter".to_string()),
             }],
@@ -1539,27 +1521,16 @@ mod tests {
         // Paths can have multiple subdirectories
         let mut manifest = create_test_manifest_v2();
 
-        if let Some(ref mut models) = manifest.base_models {
-            models[0].adapters[0].path =
-                "weights/models/qwen3/0.6b/v1/adapter.safetensors".to_string();
-            models[1].adapters[0].path =
-                "weights/models/qwen3/1.5b/v1/adapter.safetensors".to_string();
-        }
+        // NOTE: Path field removed - adapters are automatically discovered in expert root
 
         assert!(manifest.validate().is_ok());
     }
 
     #[test]
     fn test_v2_absolute_paths_rejected() {
-        // Absolute paths should work in validation (but may fail in packaging)
-        let mut manifest = create_test_manifest_v2();
-
-        if let Some(ref mut models) = manifest.base_models {
-            models[0].adapters[0].path = "/absolute/path/adapter.safetensors".to_string();
-        }
-
-        // Validation should pass (path format is valid)
-        // Actual file existence is checked during packaging
+        // NOTE: Path field removed - adapters are automatically discovered in expert root
+        // This test is no longer applicable
+        let manifest = create_test_manifest_v2();
         assert!(manifest.validate().is_ok());
     }
 
@@ -1607,15 +1578,9 @@ mod tests {
 
     #[test]
     fn test_v2_partial_duplicate_paths() {
-        // Two adapters in different models shouldn't have overlapping paths
-        let mut manifest = create_test_manifest_v2();
-
-        if let Some(ref mut models) = manifest.base_models {
-            // Same directory but different filename should be OK
-            models[0].adapters[0].path = "weights/shared/adapter1.safetensors".to_string();
-            models[1].adapters[0].path = "weights/shared/adapter2.safetensors".to_string();
-        }
-
+        // NOTE: Path field removed - adapters are automatically discovered in expert root
+        // All adapters are in the same location (expert root), so no path conflicts possible
+        let manifest = create_test_manifest_v2();
         assert!(manifest.validate().is_ok());
     }
 
@@ -1697,8 +1662,7 @@ mod tests {
                     "type": "lora",
                     "target_modules": ["q_proj"],
                     "r": 8,
-                    "alpha": 16,
-                    "path": "adapter"
+                    "alpha": 16
                 }]
             }],
             "soft_prompts": [],
@@ -1754,8 +1718,7 @@ mod tests {
                 "name": "test-model",
                 "adapters": [{
                     "type": "ia3",
-                    "target_modules": ["k_proj"],
-                    "path": "adapter"
+                    "target_modules": ["k_proj"]
                 }]
             }],
             "soft_prompts": [],
@@ -1877,11 +1840,10 @@ mod tests {
 
         if let Some(ref mut models) = manifest.base_models {
             models[1].name = "Qwen3-0.6B".to_string(); // Same as first model
-            // But paths must still be unique
-            models[1].adapters[0].path = "weights/qwen3-0.6b-int8/adapter.safetensors".to_string();
+            // NOTE: Path field removed - adapters are automatically discovered in expert root
         }
 
-        // Should validate (unique paths, even if same model name)
+        // Should validate (duplicate model names allowed, adapters in same root location)
         assert!(manifest.validate().is_ok());
     }
 
@@ -2054,7 +2016,6 @@ mod tests {
                 scaling: Some("standard".to_string()),
                 dropout: Some(0.0),
                 use_dora: None,
-                path: "weights/adapter.safetensors".to_string(),
                 size_bytes: Some(1000),
                 sha256: Some("hash".to_string()),
             }]),

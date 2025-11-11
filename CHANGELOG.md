@@ -12,6 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Removed emojis**: All emoji characters removed from CLI output for better terminal compatibility
 - **Adapter path resolution**: Automatic adapter discovery (see v0.3.0 adapter changes below)
 
+### Fixed
+- **Gradient accumulation warning**: Fixed "Qwen3ForCausalLM does not accept `num_items_in_batch`" warning
+  - Added `unsloth_train()` wrapper from Unsloth to properly handle gradient accumulation
+  - Automatically used when `use_unsloth: true` is set in manifest training config
+  - Resolves gradient accumulation optimization issues and improves training stability
+- **Windows CUDA stability**: Added critical Windows-specific CUDA configurations
+  - `PYTORCH_CUDA_ALLOC_CONF`: Optimized memory allocation (max_split_size_mb:128,backend:cudaMallocAsync)
+  - `TF_ENABLE_ONEDNN_OPTS`: Disabled to avoid Intel MKL conflicts
+  - Applied automatically on Windows before any CUDA operations
+
 ### Changed - 2025-11-08
 
 #### Adapter Path Resolution

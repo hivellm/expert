@@ -188,7 +188,7 @@ class TestAdapterTypes:
             gradient_checkpointing=False,
         )
         
-        model_lora = setup_lora(base_model, config_lora)
+        model_lora = setup_adapter(base_model, config_lora)
         trainable_lora, total = model_lora.get_nb_trainable_parameters()
         results['lora_r16'] = trainable_lora
         
@@ -201,13 +201,26 @@ class TestAdapterTypes:
         )
         
         # Test IA³
-        config_ia3 = config_lora
-        config_ia3.adapter_type = "ia3"
-        config_ia3.rank = None
-        config_ia3.alpha = None
-        config_ia3.target_modules = ["q_proj", "v_proj", "o_proj"]
+        config_ia3 = TrainingConfig(
+            base_model_name=base_model_path,
+            quantization="int8",
+            dataset_path="test.jsonl",
+            output_dir="test_output",
+            device="cuda" if torch.cuda.is_available() else "cpu",
+            adapter_type="ia3",
+            rank=None,
+            alpha=None,
+            target_modules=["q_proj", "v_proj", "o_proj"],
+            epochs=1,
+            learning_rate=0.0001,
+            batch_size=1,
+            gradient_accumulation_steps=1,
+            warmup_steps=0,
+            lr_scheduler="linear",
+            gradient_checkpointing=False,
+        )
         
-        model_ia3 = setup_lora(base_model, config_ia3)
+        model_ia3 = setup_adapter(base_model, config_ia3)
         trainable_ia3, _ = model_ia3.get_nb_trainable_parameters()
         results['ia3'] = trainable_ia3
         

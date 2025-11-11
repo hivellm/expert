@@ -265,7 +265,13 @@ class TestProgressTestRunner:
             "previous_checkpoint": "checkpoint-50",
             "improvements": 1,
             "regressions": 0,
+            "fixed_failures": [],
+            "new_failures": [],
         }
+        
+        # Add timestamp if missing
+        if "timestamp" not in report:
+            report["timestamp"] = datetime.now().isoformat()
         
         md_report = runner.generate_markdown_report(report, comparison)
         
@@ -325,14 +331,18 @@ class TestProgressTestCallback:
         """Test callback on checkpoint save"""
         # Create checkpoint directory
         checkpoint_dir = Path(mock_args.output_dir) / "checkpoint-100"
-        checkpoint_dir.mkdir(parents=True)
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
         
         mock_run_tests.return_value = {
             "checkpoint": "checkpoint-100",
-            "test_results": {"total": 0},
+            "step": 100,
+            "expert_name": "test-expert",
+            "expert_version": "1.0.0",
+            "timestamp": datetime.now().isoformat(),
+            "test_results": {"total": 0, "passed": 0, "failed": 0, "success_rate": 0.0},
         }
         mock_find.return_value = []
-        mock_compare.return_value = {"previous_checkpoint": None}
+        mock_compare.return_value = {"previous_checkpoint": None, "improvements": 0, "regressions": 0, "fixed_failures": [], "new_failures": []}
         mock_json.return_value = {}
         mock_md.return_value = "# Report"
         
