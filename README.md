@@ -1,5 +1,15 @@
 # Expert System
 
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Status](https://img.shields.io/badge/status-development-yellow.svg)](README.md#project-status)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-0078d4.svg)](README.md#system-requirements)
+[![CUDA](https://img.shields.io/badge/CUDA-12.1%2B-76B900.svg)](README.md#system-requirements)
+
+[![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](README.md#rust-runtime--production)
+[![Python](https://img.shields.io/badge/python-3.12-blue.svg)](README.md#python-training--tooling)
+[![Base Model](https://img.shields.io/badge/base%20model-Qwen3--0.6B-orange.svg)](README.md#core-components)
+[![VRAM](https://img.shields.io/badge/VRAM-8--16GB-yellow.svg)](README.md#performance-targets)
+
 > Dynamic expert composition system for fast, specialized inference on domestic GPUs
 
 ## Overview
